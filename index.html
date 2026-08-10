@@ -1,0 +1,1498 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>教評會委員投票系統｜Leo Tsai 人事雲端工具站</title>
+  <meta name="description" content="零伺服器成本、高隱私無記名投票與紙本選票產製系統，專為公立學校與事業單位教評會選舉設計。">
+  
+  <!-- Google Fonts & Remix Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/remixicon@4.2.0/fonts/remixicon.css">
+
+  <!-- SheetJS CDN (支援直接讀取 Excel .xlsx / .xls / .csv) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --primary-light: #eff6ff;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --card-bg: #ffffff;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --border-color: #e2e8f0;
+      --radius: 12px;
+      --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', 'Noto Sans TC', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    body {
+      background-color: #f8fafc;
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* 導覽列 Top Bar */
+    .navbar {
+      background: #0f172a;
+      color: #ffffff;
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid #334155;
+    }
+    .nav-container {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .brand-logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: white;
+    }
+    .brand-badge {
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+      color: white;
+      font-weight: 700;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 1.1rem;
+      letter-spacing: 1px;
+    }
+    .brand-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+    }
+    .brand-sub {
+      font-size: 0.75rem;
+      color: #94a3b8;
+    }
+
+    /* 主容器 */
+    .container {
+      max-width: 1000px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+      flex: 1;
+      width: 100%;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border-radius: var(--radius);
+      padding: 2rem;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border-color);
+      margin-bottom: 1.5rem;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 1.5rem;
+      padding-bottom: 1rem;
+      border-bottom: 2px solid #f1f5f9;
+    }
+    .card-header i {
+      font-size: 1.5rem;
+      color: var(--primary);
+    }
+    .card-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #1e293b;
+    }
+
+    /* 表單元件 */
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.25rem;
+    }
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .form-group label {
+      font-weight: 600;
+      font-size: 0.9rem;
+      color: #334155;
+    }
+    .form-control {
+      padding: 0.75rem 1rem;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      font-size: 0.95rem;
+      transition: all 0.2s;
+    }
+    .form-control:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+    }
+
+    /* 檔案上傳與拖曳區 */
+    .upload-box {
+      border: 2px dashed #cbd5e1;
+      border-radius: var(--radius);
+      padding: 2rem;
+      text-align: center;
+      background: #f8fafc;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .upload-box:hover, .upload-box.dragover {
+      border-color: var(--primary);
+      background: var(--primary-light);
+    }
+    .upload-icon {
+      font-size: 2.5rem;
+      color: var(--primary);
+      margin-bottom: 0.5rem;
+    }
+
+    /* 按鈕樣式 */
+    .btn-group {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      margin-top: 1.5rem;
+    }
+    .btn {
+      padding: 0.85rem 1.5rem;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      cursor: pointer;
+      border: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+    }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-secondary {
+      background: #e2e8f0;
+      color: #334155;
+    }
+    .btn-secondary:hover { background: #cbd5e1; }
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--primary);
+      color: var(--primary);
+    }
+    .btn-outline:hover { background: var(--primary-light); }
+
+    /* 名單預覽表格 */
+    .table-wrapper {
+      overflow-x: auto;
+      margin-top: 1rem;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+      text-align: left;
+    }
+    th, td {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border-color);
+    }
+    th {
+      background: #f1f5f9;
+      color: #475569;
+      font-weight: 600;
+    }
+    tr:hover { background: #f8fafc; }
+
+    /* 標籤 Badge */
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .badge-primary { background: #dbeafe; color: #1e40af; }
+    .badge-success { background: #d1fae5; color: #065f46; }
+    .badge-warning { background: #fef3c7; color: #92400e; }
+    .badge-danger { background: #fee2e2; color: #991b1b; }
+
+    /* 警示提示框 */
+    .alert-box {
+      padding: 1rem;
+      border-radius: 8px;
+      background: #eff6ff;
+      border-left: 4px solid var(--primary);
+      margin-top: 1rem;
+      font-size: 0.9rem;
+      color: #1e40af;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    /* 投票者卡片選單 */
+    .candidate-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 1rem;
+      margin: 1.5rem 0;
+    }
+    .candidate-card {
+      border: 2px solid var(--border-color);
+      border-radius: var(--radius);
+      padding: 1.25rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: white;
+      position: relative;
+      user-select: none;
+    }
+    .candidate-card:hover:not(.disabled) {
+      border-color: var(--primary);
+      transform: translateY(-2px);
+    }
+    .candidate-card.selected {
+      border-color: var(--primary);
+      background: var(--primary-light);
+      box-shadow: 0 0 0 2px var(--primary);
+    }
+    .candidate-card.disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      background: #f1f5f9;
+    }
+    .candidate-card .check-icon {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      font-size: 1.2rem;
+      color: var(--primary);
+      display: none;
+    }
+    .candidate-card.selected .check-icon {
+      display: block;
+    }
+
+    /* Sticky 固定計數條 */
+    .sticky-bar {
+      position: sticky;
+      top: 10px;
+      z-index: 100;
+      background: #0f172a;
+      color: white;
+      padding: 1rem 1.5rem;
+      border-radius: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 10px 25px -5px rgba(0,0,0,0.3);
+      margin-bottom: 1.5rem;
+    }
+
+    /* Modal 對話框 */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(15, 23, 42, 0.6);
+      backdrop-filter: blur(4px);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+      padding: 1rem;
+    }
+    .modal-card {
+      background: white;
+      border-radius: 16px;
+      max-width: 600px;
+      width: 100%;
+      padding: 2rem;
+      box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
+    }
+
+    /* A4 列印模式 CSS */
+    @media print {
+      body * { visibility: hidden; }
+      #printable-ballot-area, #printable-ballot-area * { visibility: visible; }
+      #printable-ballot-area {
+        position: absolute;
+        left: 0; top: 0;
+        width: 100%;
+        padding: 0;
+        margin: 0;
+      }
+      .no-print { display: none !important; }
+    }
+    .a4-preview {
+      background: white;
+      border: 1px solid #ccc;
+      padding: 2cm;
+      min-height: 29.7cm;
+      width: 21cm;
+      margin: 0 auto;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    .ballot-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
+    }
+    .ballot-table th, .ballot-table td {
+      border: 1px solid #000;
+      padding: 10px;
+      text-align: center;
+      font-size: 1.1rem;
+    }
+
+    /* 頁尾 Footer */
+    footer {
+      text-align: center;
+      padding: 2rem;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      border-top: 1px solid var(--border-color);
+      margin-top: auto;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 導覽列 -->
+  <nav class="navbar">
+    <div class="nav-container">
+      <a href="https://leotsai.me/" class="brand-logo">
+        <div class="brand-badge">LT</div>
+        <div>
+          <div class="brand-title">教評會委員投票系統</div>
+          <div class="brand-sub">Leo Tsai 人事雲端工具站 ｜ leotsai.me</div>
+        </div>
+      </a>
+      <div>
+        <span class="badge badge-primary"><i class="ri-shield-check-line"></i> 零伺服器雙軌防護</span>
+      </div>
+    </div>
+  </nav>
+
+  <!-- 主區塊 -->
+  <div class="container">
+    
+    <!-- 1. 管理者建置介面 (預設顯示，當網址無 ?vote_id= 時) -->
+    <div id="admin-view">
+      <div class="card">
+      <div class="card">
+        <div class="card-header">
+          <i class="ri-calculator-line"></i>
+          <div>
+            <div class="card-title">1. 教評會委員總人數與法定比例試算</div>
+            <div style="font-size: 0.85rem; color: var(--text-muted);">
+              依據《高級中等以下學校教師評審委員會設置辦法》第 3 條即時計算 ｜ 參考 <a href="https://committee.leotsai.me/" target="_blank" style="color: var(--primary); text-decoration: underline;">Leo Tsai 學校委員會組成試算系統</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-grid" style="margin-bottom: 1.5rem;">
+          <div class="form-group">
+            <label for="committee_total_n">教評會委員總額 <small>(法定 5 ～ 19 人，第 3 條第 1 項)</small></label>
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <input type="range" id="committee_total_n" min="5" max="19" value="11" oninput="calculateCommitteeComposition()" style="flex: 1; accent-color: var(--primary);">
+              <span id="committee_n_val" style="font-size: 1.4rem; font-weight: 700; color: var(--primary); min-width: 45px; text-align: right;">11 人</span>
+            </div>
+          </div>
+          <div class="form-group" style="justify-content: center;">
+            <div class="chk" style="display: flex; align-items: center; gap: 8px;">
+              <input type="checkbox" id="has_teacher_assoc" checked onchange="calculateCommitteeComposition()" style="width: 18px; height: 18px;">
+              <label for="has_teacher_assoc" style="margin: 0; cursor: pointer;">學校已成立教師會 <small style="display: block; font-weight: 400; color: var(--text-muted);">未成立者不置教師會代表 (當然委員少 1 人)</small></label>
+            </div>
+          </div>
+        </div>
+
+        <!-- 試算結果即時資訊卡 -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 1.5rem;">
+          <div style="background: #f1f5f9; padding: 1rem; border-radius: 10px; border-left: 4px solid var(--primary);">
+            <div style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">👑 當然委員</div>
+            <div style="font-size: 1.5rem; font-weight: 700; color: #1e293b;" id="calc-ex-officio">3 人</div>
+            <div style="font-size: 0.75rem; color: var(--text-muted);" id="calc-ex-desc">校長1 + 家長會1 + 教師會1</div>
+          </div>
+          <div style="background: #eff6ff; padding: 1rem; border-radius: 10px; border-left: 4px solid #3b82f6;">
+            <div style="font-size: 0.8rem; color: #1e40af; font-weight: 600;">🗳️ 選任 (票選) 委員</div>
+            <div style="font-size: 1.5rem; font-weight: 700; color: var(--primary);" id="calc-elected">8 人</div>
+            <div style="font-size: 0.75rem; color: #1e40af;">全體專任教師票選產生</div>
+          </div>
+          <div style="background: #ecfdf5; padding: 1rem; border-radius: 10px; border-left: 4px solid var(--success);">
+            <div style="font-size: 0.8rem; color: #065f46; font-weight: 600;">⚖️ 未兼行政下限 (≧ 1/2)</div>
+            <div style="font-size: 1.5rem; font-weight: 700; color: var(--success);" id="calc-non-admin">6 人</div>
+            <div style="font-size: 0.75rem; color: #065f46;">未兼行政教師保障名額</div>
+          </div>
+          <div style="background: #fef3c7; padding: 1rem; border-radius: 10px; border-left: 4px solid var(--warning);">
+            <div style="font-size: 0.8rem; color: #92400e; font-weight: 600;">🚻 任一性別下限 (≧ 1/3)</div>
+            <div style="font-size: 1.5rem; font-weight: 700; color: var(--warning);" id="calc-gender">4 人</div>
+            <div style="font-size: 0.75rem; color: #92400e;">人數較少性別保障名額</div>
+          </div>
+        </div>
+
+        <div style="text-align: right;">
+          <button class="btn btn-outline" style="font-size: 0.85rem;" onclick="applyElectedToMaxSelectable()">
+            <i class="ri-arrow-down-line"></i> 一鍵帶入「選任票選人數」為圈選上限
+          </button>
+        </div>
+      </div>
+
+      <!-- 發起投票活動基本設定 -->
+      <div class="card">
+        <div class="card-header">
+          <i class="ri-settings-4-line"></i>
+          <div>
+            <div class="card-title">2. 發起投票活動設定</div>
+            <div style="font-size: 0.85rem; color: var(--text-muted);">填寫基本選務設定，並匯入學校人事名冊 CSV 或 Excel 檔案</div>
+          </div>
+        </div>
+
+        <div class="form-grid">
+          <div class="form-group">
+            <label>學校 / 單位名稱</label>
+            <input type="text" id="school_name" class="form-control" placeholder="例如：高雄市OO區OO國民小學" value="高雄市OO區OO國民小學">
+          </div>
+          <div class="form-group">
+            <label>管理者通知 Email</label>
+            <input type="email" id="admin_email" class="form-control" placeholder="例如：admin@school.edu.tw">
+          </div>
+          <div class="form-group">
+            <label>票選委員應選人數 (圈選上限人次) <small style="display: block; font-weight: 400; color: var(--text-muted);">例：總額 11 人扣除當然委員 3 人，本次要投票選出 8 人</small></label>
+            <input type="number" id="max_selectable" class="form-control" value="8" min="1" max="20" onchange="updateLegalNotice()">
+          </div>
+          <div class="form-group">
+            <label>投票開始時間</label>
+            <input type="datetime-local" id="start_time" class="form-control">
+          </div>
+          <div class="form-group">
+            <label>投票結束時間 (時間到自動結案發信)</label>
+            <input type="datetime-local" id="end_time" class="form-control">
+          </div>
+        </div>
+      </div>
+
+      <!-- 名單匯入卡片 -->
+      <div class="card">
+        <div class="card-header">
+          <i class="ri-file-user-line"></i>
+          <div>
+            <div class="card-title">2. 人事名冊匯入與過濾</div>
+            <div style="font-size: 0.85rem; color: var(--text-muted);">支援學校人事系統原始 CSV / Excel (.xlsx) 檔案，系統自動排除非教師與代理教師</div>
+          </div>
+        </div>
+
+        <!-- 檔案拖曳與選擇 -->
+        <div class="upload-box" id="drop-zone" onclick="document.getElementById('file-input').click()">
+          <i class="ri-upload-cloud-2-line upload-icon"></i>
+          <div style="font-weight: 600; font-size: 1.05rem;">點擊選擇或拖曳人事名冊檔案 (.csv, .xlsx, .xls) 到此處</div>
+          <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 5px;">支援 WebHR 系統匯出之原始職員名冊，自動過濾非教師與代理教師</div>
+          <div style="font-size: 0.85rem; color: var(--primary); margin-top: 8px; font-weight: 600; background: #eff6ff; display: inline-block; padding: 6px 14px; border-radius: 6px;">
+            💡 <strong>WebHR 產製路徑：</strong> <code>WebHR 系統 ➡️ 個人資料 ➡️ 個人基本資料 ➡️ 報表 ➡️ 職員名籍冊 (報表格式選 EXCEL)</code>
+          </div>
+          <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 6px;">
+            📝 <strong>若手邊為 Word 檔 (.doc / .docx)：</strong> 請開啟 Word 全選複製內文 (Ctrl+A ➡️ Ctrl+C)，點選下方「貼上 Word / Excel 文字解析」即可 100% 成功讀取！
+          </div>
+          <input type="file" id="file-input" accept=".csv, .xlsx, .xls" style="display: none;" onchange="handleFileSelect(event)">
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem; flex-wrap: wrap; gap: 10px;">
+          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <button class="btn btn-outline" onclick="downloadCsvTemplate()">
+              <i class="ri-download-line"></i> 下載簡易版 CSV 範本
+            </button>
+            <button class="btn btn-outline" onclick="openPasteModal()">
+              <i class="ri-clipboard-line"></i> 貼上 Excel / 文字內容解析
+            </button>
+          </div>
+          <span id="parsed-count-badge" class="badge badge-warning" style="font-size: 0.9rem;">尚未匯入名單</span>
+        </div>
+
+        <!-- 法規提示 -->
+        <div class="alert-box" id="legal-notice-box">
+          <i class="ri-information-line" style="font-size: 1.2rem;"></i>
+          <div>
+            <strong>《高級中等以下學校教師評審委員會設置辦法》第 3 條規範提示：</strong><br>
+            「未兼行政教師人數，不得少於委員總額二分之一。」<br>
+            當前應選上限為 <span id="notice-max-count">2</span> 人 ➡️ <strong>未兼行政教師至少需占 1 人以上</strong>。
+          </div>
+        </div>
+
+        <!-- 名單解析預覽表格 -->
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>編號</th>
+                <th>姓名</th>
+                <th>原始職稱</th>
+                <th>身分分類</th>
+                <th>8碼通行碼 (驗證碼)</th>
+                <th>投票權</th>
+                <th>被選舉權 (登載於選票)</th>
+              </tr>
+            </thead>
+            <tbody id="voter-table-body">
+              <tr>
+                <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 2rem;">
+                  請上傳人事系統 CSV/Excel 檔案以載入名單
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- 多軌建立按鈕 -->
+        <div class="btn-group" style="justify-content: flex-end; margin-top: 2rem;">
+          <button class="btn btn-secondary" onclick="generatePaperBallot()">
+            <i class="ri-printer-line"></i> 【按鈕 1】產製紙本選票 (A4 列印)
+          </button>
+          <button class="btn btn-secondary" onclick="generateSignRoster()">
+            <i class="ri-file-list-3-line"></i> 【按鈕 2】產製選票簽收清冊 (A4 簽名冊)
+          </button>
+          <button class="btn btn-secondary" onclick="generateTallySheet()">
+            <i class="ri-bar-chart-2-line"></i> 【按鈕 3】產製開票計票單 (A4 當選表)
+          </button>
+          <button class="btn btn-primary" onclick="deployOnlineVote()">
+            <i class="ri-send-plane-fill"></i> 【按鈕 4】發布線上無記名投票 (GAS API)
+          </button>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- 2. 投票者介面 (當網址帶有 ?vote_id=XXXXX 時自動顯示) -->
+    <div id="voter-view" style="display: none;">
+      
+      <!-- 頂部 Sticky 計數列 -->
+      <div class="sticky-bar" id="voter-sticky-bar" style="display: none;">
+        <div>
+          <span style="font-size: 0.85rem; color: #94a3b8;">學校單位：</span>
+          <strong id="voter-school-title">載入中...</strong>
+        </div>
+        <div>
+          <span style="font-size: 0.9rem;">應選上限：<span id="voter-max-selectable">0</span> 人 ｜ 已圈選：<strong id="voter-selected-count" style="color: var(--warning); font-size: 1.2rem;">0</strong> 人</span>
+        </div>
+      </div>
+
+      <!-- 階段 A：身份驗證卡片 -->
+      <div class="card" id="voter-step-verify">
+        <div class="card-header">
+          <i class="ri-lock-password-line"></i>
+          <div>
+            <div class="card-title">教評會選務身分驗證</div>
+            <div style="font-size: 0.85rem; color: var(--text-muted);">請輸入您的 8 位數通行驗證碼以進入投票</div>
+          </div>
+        </div>
+
+        <div style="max-width: 400px; margin: 1rem auto; text-align: center;">
+          <div class="form-group" style="text-align: left; margin-bottom: 1.5rem;">
+            <label>8 位數驗證碼（身分證後 4 碼 + 生日 MMDD 4 碼）</label>
+            <input type="password" id="voter_verify_code" class="form-control" placeholder="例如：56780825" maxlength="8" inputmode="numeric" style="font-size: 1.5rem; letter-spacing: 4px; text-align: center;">
+          </div>
+          <button class="btn btn-primary" style="width: 100%; justify-content: center;" onclick="verifyVoterCode()">
+            <i class="ri-key-2-line"></i> 驗證身份並載入選票
+          </button>
+          <div id="verify-error-msg" style="color: var(--danger); font-size: 0.9rem; margin-top: 1rem; display: none;"></div>
+        </div>
+      </div>
+
+      <!-- 階段 B：候選人圈選卡片 -->
+      <div class="card" id="voter-step-ballot" style="display: none;">
+        <div class="card-header">
+          <i class="ri-checkbox-multiple-line"></i>
+          <div>
+            <div class="card-title">請圈選教評會委員候選人</div>
+            <div style="font-size: 0.85rem; color: var(--text-muted);">點擊卡片即可勾選，至少選 1 人，最多不得超過應選上限</div>
+          </div>
+        </div>
+
+        <div class="candidate-grid" id="candidate-grid-container">
+          <!-- 動態載入候選人卡片 -->
+        </div>
+
+        <div style="text-align: center; margin-top: 2rem;">
+          <button class="btn btn-primary" style="padding: 1rem 3rem; font-size: 1.1rem;" onclick="openConfirmModal()">
+            <i class="ri-check-double-line"></i> 確認並準備送出選票
+          </button>
+        </div>
+      </div>
+
+      <!-- 階段 C：投票完成結果 -->
+      <div class="card" id="voter-step-success" style="display: none; text-align: center; padding: 3rem 1rem;">
+        <i class="ri-checkbox-circle-fill" style="font-size: 5rem; color: var(--success);"></i>
+        <h2 style="margin: 1rem 0; color: #1e293b;">投票成功！感謝您的參與</h2>
+        <p style="color: var(--text-muted); max-width: 500px; margin: 0 auto 1.5rem;">
+          您的選票已完全匿名寫入 Google Sheets 獨立工作表。系統採用物理性雙工作表切斷架構，無人能追溯您的圈選對象。
+        </p>
+        <div class="badge badge-success" style="font-size: 0.9rem; padding: 6px 16px;">
+          完成時間戳記：<span id="success-timestamp"></span>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <!-- Modal 1: 二次確認送出 Modal -->
+  <div class="modal-overlay" id="confirm-modal">
+    <div class="modal-card">
+      <h3 style="margin-bottom: 1rem; display: flex; align-items: center; gap: 8px;">
+        <i class="ri-question-line" style="color: var(--primary);"></i> 確認送出無記名選票？
+      </h3>
+      <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 1.5rem;">
+        您選擇的圈選對象如下（送出後即寫入資料庫，無法更改或重投）：
+      </p>
+      <div id="modal-selected-list" style="background: #f8fafc; padding: 1rem; border-radius: 8px; border: 1px solid var(--border-color); margin-bottom: 1.5rem; font-weight: 600; font-size: 1.1rem; color: var(--primary);">
+        <!-- 顯示選取的名單 -->
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 1rem;">
+        <button class="btn btn-secondary" onclick="closeConfirmModal()">返回修改</button>
+        <button class="btn btn-primary" onclick="submitFinalVote()"><i class="ri-check-line"></i> 確定送出選票</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 2: A4 紙本選票列印 Modal -->
+  <div class="modal-overlay" id="paper-ballot-modal">
+    <div class="modal-card" style="max-width: 900px; max-height: 90vh; overflow-y: auto;">
+      <div class="no-print" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+        <h3 style="margin: 0;">紙本 A4 選票單列印預覽</h3>
+        <div>
+          <button class="btn btn-primary" onclick="window.print()"><i class="ri-printer-line"></i> 直接列印 A4</button>
+          <button class="btn btn-secondary" onclick="closePaperModal()">關閉</button>
+        </div>
+      </div>
+      
+      <!-- 可列印區域 -->
+      <div id="printable-ballot-area">
+        <div class="a4-preview" style="font-family: '標楷體', 'PMingLiU', serif; line-height: 1.8; color: #000;">
+          <h2 style="text-align: center; font-size: 1.5rem; margin-bottom: 1rem;" id="print-school-title">高雄市OO區OO國民小學 114 學年度教師評審委員會選舉選票單</h2>
+          
+          <div style="font-size: 0.9rem; margin-bottom: 1rem; text-align: justify; border-bottom: 2px solid #000; padding-bottom: 12px;">
+            <strong>壹、說明：</strong><br>
+            一、本次選舉請以無記名方式票選您心目中理想人員擔任委員，期許結合多數教師的智慧，以公正、公平、公開原則共同為本校妥善處理教師的聘任及重要權益等事項。<br>
+            二、依據高級中等以下學校教師評審委員會設置辦法第3條規定略以，教師評審委員會包括校長、家長會代表、教師會代表（由教師會推選代表）各一人為當然委員，餘由全體教師選 (推) 舉之。又本會委員中未兼行政之教師不得少於委員總額二分之一，任一性別委員人數不得少於委員總額三分之一。<br>
+            三、復依本校教師評審委員會設置要點規定略以，本會置委員 <span id="print-total-n">11</span> 人，除當然委員 <span id="print-ex-n">3</span> 人外，應票選委員 <strong id="print-max-selectable">8</strong> 人，又委員中未兼行政職務之教師應至少為 <span id="print-non-admin-n">6</span> 人，任一性別委員人數應至少為 <span id="print-gender-n">4</span> 人（票數相同者以抽籤定之，仍須受限於兼行政及性別比例之規定）；另依票數高低列候補委員 5 人（如有同票等情事酌予增列）。<br>
+            四、請各位教師以「○」符號在圈票處劃記，每張選票至多圈選 <strong id="print-max-selectable-2">8</strong> 人，圈選 <span id="print-over-selectable">9</span> 人以上（含）者，則視為廢票；選票如有塗改或以其他符號註記，亦視為廢票。<br>
+            五、本次投票時間自 <span id="print-start-time">115年9月3日上午8時</span> 起至 <span id="print-end-time">同年月9日上午8時</span> 止，請於時限內將選票投入選票箱中，逾期將以廢票計之。<br>
+            <span style="font-size: 0.85rem; color: #333;">※ 當然委員：校長、家長會代表、教師會代表。</span>
+          </div>
+
+          <table class="ballot-table">
+            <thead>
+              <tr>
+                <th style="width: 15%;">圈選欄</th>
+                <th style="width: 15%;">號次</th>
+                <th style="width: 35%;">被選舉人姓名</th>
+                <th style="width: 35%;">備註 / 身分</th>
+              </tr>
+            </thead>
+            <tbody id="print-candidate-tbody">
+              <!-- 動態產製 A4 被選舉人格子 -->
+            </tbody>
+          </table>
+
+          <div style="margin-top: 2cm; display: flex; justify-content: space-between; font-size: 1.05rem;">
+            <div><strong>發票人簽章：</strong> _______________</div>
+            <div><strong>監票人簽章：</strong> _______________</div>
+            <div><strong>印製日期：</strong> <span id="print-date"></span></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Modal 3: 線上發布成功 Modal -->
+  <div class="modal-overlay" id="online-success-modal">
+    <div class="modal-card">
+      <h3 style="margin-bottom: 1rem; color: var(--success); display: flex; align-items: center; gap: 8px;">
+        <i class="ri-checkbox-circle-line"></i> 線上無記名投票發布成功！
+      </h3>
+      <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 1rem;">
+        活動資料與名單 8 碼通行碼已寫入 Google Sheets，請複製以下訊息發布給全校同仁：
+      </p>
+
+      <div class="form-group" style="margin-bottom: 1rem;">
+        <label>專屬投票網址</label>
+        <input type="text" id="generated-vote-url" class="form-control" readonly style="font-weight: 600; color: var(--primary);">
+      </div>
+
+      <div class="form-group" style="margin-bottom: 1.5rem;">
+        <label>LINE / Email 宣導通知罐頭文案</label>
+        <textarea id="generated-announcement-text" class="form-control" rows="6" readonly style="font-size: 0.85rem; font-family: monospace;"></textarea>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 1rem;">
+        <button class="btn btn-primary" onclick="copyAnnouncementText()"><i class="ri-file-copy-line"></i> 一鍵複製宣導文字與網址</button>
+        <button class="btn btn-secondary" onclick="document.getElementById('online-success-modal').style.display='none'">關閉</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 4: 純文字/Excel 貼上解析 Modal -->
+  <div class="modal-overlay" id="paste-modal">
+    <div class="modal-card">
+      <h3 style="margin-bottom: 1rem; display: flex; align-items: center; gap: 8px;">
+        <i class="ri-clipboard-line" style="color: var(--primary);"></i> 貼上 Excel / 文字內容解析
+      </h3>
+      <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">
+        請直接將 Excel 裡的名單資料全選複製 (Ctrl+A ➡️ Ctrl+C) 並貼在下方框內：
+      </p>
+
+      <div class="form-group" style="margin-bottom: 1.5rem;">
+        <textarea id="paste-textarea" class="form-control" rows="8" placeholder="全選 Excel 內容並貼上於此（需包含『職稱』與『姓名』欄位標頭）..." style="font-size: 0.85rem; font-family: monospace;"></textarea>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 1rem;">
+        <button class="btn btn-secondary" onclick="document.getElementById('paste-modal').style.display='none'">取消</button>
+        <button class="btn btn-primary" onclick="parsePastedText()"><i class="ri-search-eye-line"></i> 開始解析名單</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 5: A4 選票簽收清冊列印 Modal -->
+  <div class="modal-overlay" id="sign-roster-modal">
+    <div class="modal-card" style="max-width: 900px; max-height: 90vh; overflow-y: auto;">
+      <div class="no-print" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+        <h3 style="margin: 0;">紙本 A4 選票簽收清冊列印預覽</h3>
+        <div>
+          <button class="btn btn-primary" onclick="window.print()"><i class="ri-printer-line"></i> 直接列印 A4 簽收清冊</button>
+          <button class="btn btn-secondary" onclick="document.getElementById('sign-roster-modal').style.display='none'">關閉</button>
+        </div>
+      </div>
+      
+      <!-- 可列印區域 -->
+      <div id="printable-roster-area">
+        <div class="a4-preview" style="font-family: '標楷體', 'PMingLiU', serif; line-height: 1.8; color: #000;">
+          <h2 style="text-align: center; font-size: 1.4rem; margin-bottom: 0.2rem;" id="print-roster-school-title">高雄市OO區OO國民小學 115 學年度教師評審委員會</h2>
+          <h3 style="text-align: center; font-size: 1.3rem; margin-bottom: 1.5rem;">暨教師成績考核委員會選舉選票 簽收清冊</h3>
+          
+          <table class="ballot-table">
+            <thead>
+              <tr>
+                <th style="width: 12%;">編號</th>
+                <th style="width: 25%;">職稱</th>
+                <th style="width: 25%;">姓名</th>
+                <th style="width: 38%;">簽章及簽收日期</th>
+              </tr>
+            </thead>
+            <tbody id="print-roster-tbody">
+              <!-- 動態產製全體專任教師簽名清冊 -->
+            </tbody>
+          </table>
+
+          <div style="margin-top: 2cm; display: flex; justify-content: space-between; font-size: 1.05rem;">
+            <div><strong>承辦人簽章：</strong> _______________</div>
+            <div><strong>人事主任簽章：</strong> _______________</div>
+            <div><strong>列印日期：</strong> <span id="print-roster-date"></span></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Modal 6: A4 開票計票單與當選名冊 Modal -->
+  <div class="modal-overlay" id="tally-sheet-modal">
+    <div class="modal-card" style="max-width: 950px; max-height: 90vh; overflow-y: auto;">
+      <div class="no-print" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+        <h3 style="margin: 0;">紙本 A4 開票計票單與當選名冊列印預覽</h3>
+        <div>
+          <button class="btn btn-primary" onclick="window.print()"><i class="ri-printer-line"></i> 直接列印 A4 計票單</button>
+          <button class="btn btn-secondary" onclick="document.getElementById('tally-sheet-modal').style.display='none'">關閉</button>
+        </div>
+      </div>
+      
+      <!-- 可列印區域 -->
+      <div id="printable-tally-area">
+        <div class="a4-preview" style="font-family: '標楷體', 'PMingLiU', serif; line-height: 1.8; color: #000; width: 100%;">
+          <h2 style="text-align: center; font-size: 1.4rem; margin-bottom: 1rem;" id="print-tally-school-title">高雄市OO區OO國民小學 114 學年度教師評審委員會選舉計票單</h2>
+          
+          <table class="ballot-table" style="font-size: 0.95rem;">
+            <thead>
+              <tr style="background: #f8fafc;">
+                <th style="width: 10%;">序號</th>
+                <th style="width: 25%;">被選舉人姓名</th>
+                <th style="width: 25%;">身分 / 備註</th>
+                <th style="width: 20%;">得票數合計</th>
+                <th style="width: 20%;">簽章/抽籤註記</th>
+              </tr>
+            </thead>
+            <tbody id="print-tally-tbody">
+              <!-- 動態產製被選舉人計票列 -->
+            </tbody>
+          </table>
+
+          <div style="margin: 1.5rem 0; display: flex; justify-content: space-between; font-size: 1.1rem; font-weight: bold;">
+            <div>計票人：__________________</div>
+            <div>監票人：__________________</div>
+          </div>
+
+          <div style="border-top: 2px solid #000; padding-top: 1rem; margin-top: 1.5rem;">
+            <h3 style="font-size: 1.2rem; margin-bottom: 0.8rem;">★ 票選委員正取及備取當選名單及票數表：</h3>
+            
+            <table class="ballot-table" style="font-size: 0.95rem;">
+              <thead>
+                <tr style="background: #f1f5f9;">
+                  <th style="width: 15%;">類別</th>
+                  <th style="width: 50%;">當選人員姓名 (按高票順序)</th>
+                  <th style="width: 35%;">名額說明</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="font-weight: bold; text-align: center; background: #e0f2fe;">正取委員</td>
+                  <td id="print-tally-elected-names" style="font-weight: bold; line-height: 2.0;">（依開票與抽籤結果填入）</td>
+                  <td>正取共 <strong id="print-tally-elected-count">8</strong> 名</td>
+                </tr>
+                <tr>
+                  <td style="font-weight: bold; text-align: center; background: #fef3c7;">備取委員</td>
+                  <td id="print-tally-alternate-names" style="line-height: 2.0;">（於當選委員因故不能擔任時依序遞補之）</td>
+                  <td>備取共 <strong>5</strong> 名</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div style="font-size: 0.85rem; margin-top: 1rem; color: #333; line-height: 1.7;">
+              ※ 依規定委員中未兼行政職務之教師應至少為 <span id="print-tally-non-admin-min">6</span> 人，任一性別委員人數應至少為 <span id="print-tally-gender-min">4</span> 人。<br>
+              ※ 當然委員：校長、家長會代表、教師會代表。
+            </div>
+          </div>
+
+          <div style="margin-top: 2cm; display: flex; justify-content: space-between; font-size: 1.05rem;">
+            <div><strong>發票人簽章：</strong> _______________</div>
+            <div><strong>監票人簽章：</strong> _______________</div>
+            <div><strong>印製日期：</strong> <span id="print-tally-date"></span></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+
+  <!-- 頁尾 -->
+  <footer>
+    <div>© 2026 <strong>Leo Tsai</strong>. 專為學校與事業單位人事選務打造 ｜ <a href="https://leotsai.me/" style="color: var(--primary); text-decoration: none;">Leo Tsai 人事雲端工具站</a></div>
+  </footer>
+
+  <!-- 系統核心前端腳本 -->
+  <script>
+    // 全域變數
+    let parsedVotersList = []; // 全體合格教師名單 (含 8 碼 Passcode 與分類)
+    let currentVoteConfig = null; // 當前活動設定
+    let selectedCandidateNames = []; // 投票者當前勾選的名單
+    const GAS_API_URL = "YOUR_GAS_WEB_APP_URL"; // 開發者發布 GAS 後替換此處 URL
+
+    // 頁面初始化
+    window.onload = function() {
+      // 設定預設日期 (今日 ~ 今日 17:00)
+      const now = new Date();
+      const end = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+      document.getElementById('start_time').value = formatDateForInput(now);
+      document.getElementById('end_time').value = formatDateForInput(end);
+
+      // 初始化教評會組成試算
+      calculateCommitteeComposition();
+
+      // 檢查 URL 是否帶有 vote_id 參數
+      const urlParams = new URLSearchParams(window.location.search);
+      const voteId = urlParams.get('vote_id');
+
+      if (voteId) {
+        // 切換為【投票者視角】
+        document.getElementById('admin-view').style.display = 'none';
+        document.getElementById('voter-view').style.display = 'block';
+        loadVoterActivityInfo(voteId);
+      }
+    };
+
+    function formatDateForInput(date) {
+      const pad = num => String(num).padStart(2, '0');
+      return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    }
+
+    // 教評會委員總人數與法定比例動態試算 (參考 committee.leotsai.me 邏輯)
+    function calculateCommitteeComposition() {
+      const n = parseInt(document.getElementById('committee_total_n').value) || 11;
+      const hasTa = document.getElementById('has_teacher_assoc').checked;
+
+      document.getElementById('committee_n_val').innerText = `${n} 人`;
+
+      // 當然委員 (校長 1 + 家長會 1 + [教師會 1])
+      const exOfficioCount = hasTa ? 3 : 2;
+      document.getElementById('calc-ex-officio').innerText = `${exOfficioCount} 人`;
+      document.getElementById('calc-ex-desc').innerText = hasTa ? "校長1 + 家長會1 + 教師會1" : "校長1 + 家長會1 (無教師會)";
+
+      // 選任 (票選) 委員
+      const electedCount = Math.max(1, n - exOfficioCount);
+      document.getElementById('calc-elected').innerText = `${electedCount} 人`;
+
+      // 未兼行政下限 (≧ 1/2)
+      const nonAdminMin = Math.ceil(n / 2);
+      document.getElementById('calc-non-admin').innerText = `${nonAdminMin} 人`;
+
+      // 任一性別下限 (≧ 1/3)
+      const genderMin = Math.ceil(n / 3);
+      document.getElementById('calc-gender').innerText = `${genderMin} 人`;
+    }
+
+    // 一鍵帶入選任人數至「圈選上限人次」
+    function applyElectedToMaxSelectable() {
+      const n = parseInt(document.getElementById('committee_total_n').value) || 11;
+      const hasTa = document.getElementById('has_teacher_assoc').checked;
+      const electedCount = Math.max(1, n - (hasTa ? 3 : 2));
+
+      document.getElementById('max_selectable').value = electedCount;
+      updateLegalNotice();
+    }
+
+    // 更新法規提示
+    function updateLegalNotice() {
+      const maxCount = parseInt(document.getElementById('max_selectable').value) || 1;
+      const minNonAdmin = Math.ceil(maxCount / 2);
+      document.getElementById('notice-max-count').innerText = maxCount;
+      document.getElementById('legal-notice-box').querySelector('strong:last-child').innerText = `未兼行政教師至少需占 ${minNonAdmin} 人以上`;
+    }
+
+    // 處理檔案選擇與讀取 (SheetJS CSV/Excel 解析)
+    function handleFileSelect(evt) {
+      const files = evt.target.files;
+      if (!files || files.length === 0) return;
+      const file = files[0];
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const data = new Uint8Array(e.target.result);
+          // 支援各種真實/偽裝成 .xls 的 HTML / CSV / XLSX 檔案
+          const workbook = XLSX.read(data, { 
+            type: 'array',
+            cellDates: true,
+            raw: false,
+            defval: ''
+          });
+
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+          
+          // 強制轉為二維陣列 (header: 1)
+          const rawRows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+          
+          if (!rawRows || rawRows.length === 0) {
+            alert("讀取 Excel 失敗：檔案內容空白或格式不符合。");
+            return;
+          }
+
+          parseSchoolHrRows(rawRows);
+        } catch (err) {
+          console.error("XLSX Read Error:", err);
+          alert("解析 Excel 檔案失敗：" + err.message + "\n請確認檔案是否毀損，或嘗試將檔案在 Excel 中『另存新檔』為 .xlsx 或 .csv 重新上傳。");
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    // 解析學校人事系統原始 CSV / Excel 欄位 (超強容錯機制)
+    function parseSchoolHrRows(rows) {
+      if (!rows || rows.length < 2) {
+        alert("名單檔案格式無效或無數據");
+        return;
+      }
+
+      // 1. 動態尋找標頭列 (精準比對，排除「職務編號」與「職務列等」干擾)
+      let headerRowIndex = -1;
+      let titleIdx = -1, nameIdx = -1, idIdx = -1, birthdayIdx = -1;
+
+      for (let i = 0; i < Math.min(30, rows.length); i++) {
+        const row = rows[i];
+        if (!row) continue;
+        
+        // 確保 row 為 Array 格式
+        const rowArray = Array.isArray(row) ? row : Object.values(row);
+        const cleanRow = rowArray.map(cell => String(cell || '').replace(/\s+/g, ''));
+
+        // 搜尋「職稱」欄位：優先匹配「職稱」，排除「職務編號」與「職務列等」
+        const tIdx = cleanRow.findIndex(c => c.includes('職稱') && !c.includes('編號') && !c.includes('列等'));
+        
+        // 搜尋「姓名」欄位：排除「單位名稱」、「機關名稱」
+        const nIdx = cleanRow.findIndex(c => (c.includes('姓名') || c === '名字') && !c.includes('單位') && !c.includes('機關'));
+        
+        const iIdx = cleanRow.findIndex(c => c.includes('身分證') || c.includes('證號'));
+        const bIdx = cleanRow.findIndex(c => c.includes('出生') || c.includes('生日'));
+
+        if (tIdx !== -1 && nIdx !== -1) {
+          headerRowIndex = i;
+          titleIdx = tIdx;
+          nameIdx = nIdx;
+          idIdx = iIdx;
+          birthdayIdx = bIdx;
+          break;
+        }
+      }
+
+      if (headerRowIndex === -1) {
+        alert("無法自動識別欄位標頭！\n系統搜尋了前 30 列，未找到同時包含「職稱」與「姓名」的列。\n請確認檔案中是否有包含『職稱』與『姓名』欄位名稱。");
+        return;
+      }
+
+      parsedVotersList = [];
+
+      // 2. 逐列處理資料與過濾
+      for (let i = headerRowIndex + 1; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row) continue;
+
+        const rowArray = Array.isArray(row) ? row : Object.values(row);
+
+        const title = String(rowArray[titleIdx] || '').trim();
+        const name = String(rowArray[nameIdx] || '').trim();
+        const idStr = idIdx !== -1 ? String(rowArray[idIdx] || '').trim() : '';
+        const birthdayStr = birthdayIdx !== -1 ? String(rowArray[birthdayIdx] || '').trim() : '';
+
+        if (!name || !title) continue;
+
+        // 【第一關過濾】：嚴格排除非編制內與非教師職務
+        const isNonTeacher = title.includes('校長') || title.includes('幹事') || title.includes('護理師') || 
+                             title.includes('工友') || title.includes('會計') || title.includes('人事') || title.includes('約僱');
+        const isProxyTeacher = title.includes('代理') || title.includes('代課');
+
+        if (isNonTeacher || isProxyTeacher) {
+          continue; // 自動排除，不進入名單
+        }
+
+        // 【第二關】：必須包含「教師」二字
+        if (title.includes('教師')) {
+          // 提取身分證後 4 碼 (取英數字最後 4 位)
+          const cleanId = idStr.replace(/[^A-Za-z0-9]/g, '');
+          const idLast4 = cleanId.length >= 4 ? cleanId.slice(-4) : '0000';
+
+          // 提取生日 MMDD (尋找 4 位數月日，如 0690326 中的 0326)
+          const birthdayMatch = birthdayStr.match(/\d+/g);
+          let birthdayMMDD = '0101';
+          if (birthdayMatch && birthdayMatch.length > 0) {
+            const rawDigits = birthdayMatch[0];
+            if (rawDigits.length >= 7) {
+              birthdayMMDD = rawDigits.slice(3, 7); // 取 0690326 中的 0326
+            } else if (rawDigits.length >= 4) {
+              birthdayMMDD = rawDigits.slice(-4);
+            }
+          }
+
+          const verifyCode = idLast4 + birthdayMMDD;
+
+          // 身分分類與兼行政判定
+          const isAdminTeacher = title.includes('主任') || title.includes('組長');
+          const isDirector = title.includes('主任');
+
+          parsedVotersList.push({
+            name: name,
+            title: title,
+            idLast4: idLast4,
+            birthdayMMDD: birthdayMMDD,
+            verifyCode: verifyCode,
+            isAdmin: isAdminTeacher,
+            categoryTag: isAdminTeacher ? (isDirector ? '兼行政 (主任)' : '兼行政 (組長)') : '未兼行政教師',
+            isCandidate: true // 依法編制內專任教師（含兼主任、兼組長、兼導師）預設全數具備被選舉權
+          });
+        }
+      }
+
+      // 渲染名單預覽表格
+      renderVoterTable();
+    }
+
+    // 渲染管理者預覽表格
+    function renderVoterTable() {
+      const tbody = document.getElementById('voter-table-body');
+      tbody.innerHTML = '';
+
+      if (parsedVotersList.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--danger); padding:1.5rem;">未找到合格之編制內專任教師名單</td></tr>`;
+        document.getElementById('parsed-count-badge').innerText = '0 人';
+        return;
+      }
+
+      document.getElementById('parsed-count-badge').innerText = `已匯入 ${parsedVotersList.length} 位合格專任教師`;
+      document.getElementById('parsed-count-badge').className = 'badge badge-success';
+
+      parsedVotersList.forEach((v, idx) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${idx + 1}</td>
+          <td><strong>${v.name}</strong></td>
+          <td>${v.title}</td>
+          <td><span class="badge ${v.isAdmin ? 'badge-warning' : 'badge-primary'}">${v.categoryTag}</span></td>
+          <td><code style="background:#e2e8f0; padding:2px 6px; border-radius:4px;">${v.verifyCode}</code></td>
+          <td><span class="badge badge-success">有 (投票權)</span></td>
+          <td>
+            <input type="checkbox" id="cand-chk-${idx}" ${v.isCandidate ? 'checked' : ''} onchange="toggleCandidate(${idx}, this.checked)">
+            <label for="cand-chk-${idx}">${v.isCandidate ? '列入圈選名單' : '<span style="color:var(--danger);">剔除 (不被圈選)</span>'}</label>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function toggleCandidate(idx, checked) {
+      if (parsedVotersList[idx]) {
+        parsedVotersList[idx].isCandidate = checked;
+      }
+    }
+
+    // 【按鈕 1】產製 A4 紙本選票單 (完全對齊官方 5 點選票說明格式)
+    function generatePaperBallot() {
+      if (parsedVotersList.length === 0) {
+        alert("請先匯入人員名冊檔案");
+        return;
+      }
+
+      const schoolName = document.getElementById('school_name').value || "國民小學";
+      const maxCount = parseInt(document.getElementById('max_selectable').value) || 8;
+      const totalN = parseInt(document.getElementById('committee_total_n').value) || 11;
+      const hasTa = document.getElementById('has_teacher_assoc').checked;
+      const exCount = hasTa ? 3 : 2;
+      const nonAdminMin = Math.ceil(totalN / 2);
+      const genderMin = Math.ceil(totalN / 3);
+
+      const startTimeVal = document.getElementById('start_time').value;
+      const endTimeVal = document.getElementById('end_time').value;
+
+      const formatDt = (dtStr) => {
+        if (!dtStr) return "115年9月3日上午8時";
+        const d = new Date(dtStr);
+        const rocYr = d.getFullYear() - 1911;
+        return `${rocYr}年${d.getMonth() + 1}月${d.getDate()}日${d.getHours()}時`;
+      };
+
+      const yearRoc = new Date().getFullYear() - 1911;
+      document.getElementById('print-school-title').innerText = `${schoolName} ${yearRoc}學年度教師評審委員會選舉選票單`;
+      document.getElementById('print-total-n').innerText = totalN;
+      document.getElementById('print-ex-n').innerText = exCount;
+      document.getElementById('print-max-selectable').innerText = maxCount;
+      document.getElementById('print-max-selectable-2').innerText = maxCount;
+      document.getElementById('print-over-selectable').innerText = maxCount + 1;
+      document.getElementById('print-non-admin-n').innerText = nonAdminMin;
+      document.getElementById('print-gender-n').innerText = genderMin;
+
+      document.getElementById('print-start-time').innerText = formatDt(startTimeVal);
+      document.getElementById('print-end-time').innerText = formatDt(endTimeVal);
+      document.getElementById('print-date').innerText = new Date().toLocaleDateString('zh-TW');
+
+      const candidates = parsedVotersList.filter(v => v.isCandidate);
+      const tbody = document.getElementById('print-candidate-tbody');
+      tbody.innerHTML = '';
+
+      candidates.forEach((c, i) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="height: 45px;">〔  〕</td>
+          <td>${i + 1}</td>
+          <td><strong>${c.name}</strong></td>
+          <td>${c.categoryTag}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      document.getElementById('paper-ballot-modal').style.display = 'flex';
+    }
+
+    function closePaperModal() {
+      document.getElementById('paper-ballot-modal').style.display = 'none';
+    }
+
+    // 【按鈕 2】產製選票簽收清冊 (A4 簽名冊列印)
+    function generateSignRoster() {
+      if (parsedVotersList.length === 0) {
+        alert("請先匯入人員名冊檔案");
+        return;
+      }
+
+      const schoolName = document.getElementById('school_name').value || "國民小學";
+      const yearRoc = new Date().getFullYear() - 1911;
+
+      document.getElementById('print-roster-school-title').innerText = `${schoolName} ${yearRoc}學年度教師評審委員會`;
+      document.getElementById('print-roster-date').innerText = new Date().toLocaleDateString('zh-TW');
+
+      const tbody = document.getElementById('print-roster-tbody');
+      tbody.innerHTML = '';
+
+      parsedVotersList.forEach((v, i) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="height: 42px; text-align: center;">${i + 1}</td>
+          <td style="text-align: center;">${v.title}</td>
+          <td style="text-align: center;"><strong>${v.name}</strong></td>
+          <td style="font-size: 0.95rem; color: #333; padding-left: 1rem;">${yearRoc}年  月　　日</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      document.getElementById('sign-roster-modal').style.display = 'flex';
+    }
+
+    // 【按鈕 3】產製開票計票單 (A4 計票與當選表列印)
+    function generateTallySheet() {
+      if (parsedVotersList.length === 0) {
+        alert("請先匯入人員名冊檔案");
+        return;
+      }
+
+      const schoolName = document.getElementById('school_name').value || "國民小學";
+      const maxCount = parseInt(document.getElementById('max_selectable').value) || 8;
+      const totalN = parseInt(document.getElementById('committee_total_n').value) || 11;
+      const nonAdminMin = Math.ceil(totalN / 2);
+      const genderMin = Math.ceil(totalN / 3);
+      const yearRoc = new Date().getFullYear() - 1911;
+
+      document.getElementById('print-tally-school-title').innerText = `${schoolName} ${yearRoc}學年度教師評審委員會選舉計票單`;
+      document.getElementById('print-tally-elected-count').innerText = maxCount;
+      document.getElementById('print-tally-non-admin-min').innerText = nonAdminMin;
+      document.getElementById('print-tally-gender-min').innerText = genderMin;
+      document.getElementById('print-tally-date').innerText = new Date().toLocaleDateString('zh-TW');
+
+      const candidates = parsedVotersList.filter(v => v.isCandidate);
+      const tbody = document.getElementById('print-tally-tbody');
+      tbody.innerHTML = '';
+
+      candidates.forEach((c, i) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="height: 38px; text-align: center;">${i + 1}</td>
+          <td style="text-align: center;"><strong>${c.name}</strong></td>
+          <td style="text-align: center;">${c.categoryTag}</td>
+          <td style="text-align: center;">　　 票</td>
+          <td style="text-align: center; font-size: 0.85rem; color: #555;">[  ]正取  [  ]備取</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      // 產生預設填寫欄
+      document.getElementById('print-tally-elected-names').innerHTML = candidates.slice(0, maxCount).map(c => c.name).join('、') + ` (預設帶入前 ${maxCount} 名，開票後手動劃記)`;
+      document.getElementById('print-tally-alternate-names').innerHTML = candidates.slice(maxCount, maxCount + 5).map(c => c.name).join('、') + ` (預設帶入候補 5 名)`;
+
+      document.getElementById('tally-sheet-modal').style.display = 'flex';
+    }
+
+    // 【按鈕 2】發布線上無記名投票 (打 GAS API)
+    function deployOnlineVote() {
+      if (parsedVotersList.length === 0) {
+        alert("請先匯入人員名冊檔案");
+        return;
+      }
+
+      const payload = {
+        action: "setup",
+        school_name: document.getElementById('school_name').value,
+        admin_email: document.getElementById('admin_email').value,
+        max_selectable: parseInt(document.getElementById('max_selectable').value),
+        start_time: document.getElementById('start_time').value,
+        end_time: document.getElementById('end_time').value,
+        voter_list: parsedVotersList.map(v => ({
+          name: v.name,
+          verify_code: v.verifyCode
+        })),
+        candidate_list: parsedVotersList.filter(v => v.isCandidate).map(v => v.name)
+      };
+
+      // 模擬/呼叫 GAS API
+      const fakeVoteId = "v_" + Date.now().toString(36);
+      const voteUrl = window.location.origin + window.location.pathname + "?vote_id=" + fakeVoteId;
+
+      document.getElementById('generated-vote-url').value = voteUrl;
+      document.getElementById('generated-announcement-text').value = 
+`📢【${payload.school_name} 113學年度教評會委員線上投票通知】
+
+🗳️ 投票網址：${voteUrl}
+📅 投票時間：${payload.start_time.replace('T', ' ')} ~ ${payload.end_time.replace('T', ' ')}
+🔢 圈選上限：上限 ${payload.max_selectable} 人
+🔑 驗證方式：請輸入您的【身分證後4碼 + 生日4碼(MMDD)】（共8位數字）
+🔒 隱私聲明：本投票採用雙工作表完全切斷身分與選票之連結，請同仁安心投票。`;
+
+      document.getElementById('online-success-modal').style.display = 'flex';
+    }
+
+    function copyAnnouncementText() {
+      const text = document.getElementById('generated-announcement-text').value;
+      navigator.clipboard.writeText(text).then(() => {
+        alert("已成功複製宣導訊息與投票網址至剪貼簿！");
+      });
+    }
+
+    // 下載簡易版 CSV 範本 (使用 100% 虛構範例資料)
+    function downloadCsvTemplate() {
+      const csvContent = "\uFEFF職稱,姓名,身分證號,出生日期\n教師兼教務處教務主任,陳大明,A123456789,0700101\n教師兼導師,林小玲,B234567890,0710202\n教師,黃志強,C345678901,0720303";
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.setAttribute('download', '教評會名冊匯入範本.csv');
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    // 開啟貼上文字 Modal
+    function openPasteModal() {
+      document.getElementById('paste-modal').style.display = 'flex';
+    }
+
+    // 解析貼上的文字或 Excel 內容 (Tab / 逗號分隔)
+    function parsePastedText() {
+      const text = document.getElementById('paste-textarea').value;
+      if (!text.trim()) {
+        alert("請先貼上名單內容");
+        return;
+      }
+
+      const lines = text.split(/\r?\n/);
+      const rows = lines.map(line => {
+        if (line.includes('\t')) {
+          return line.split('\t');
+        } else {
+          return line.split(',');
+        }
+      });
+
+      document.getElementById('paste-modal').style.display = 'none';
+      parseSchoolHrRows(rows);
+    }
+
+
+    // ----------------------------------------------------
+    // 投票者端邏輯 (Voter View)
+    // ----------------------------------------------------
+    function loadVoterActivityInfo(voteId) {
+      // 載入預設選務資料 (若有連接 GAS 則透過 fetch 取得，使用虛構測試資料)
+      currentVoteConfig = {
+        voteId: voteId,
+        schoolName: "高雄市OO區OO國民小學",
+        maxSelectable: 2,
+        candidates: ["陳大明 (導師)", "林小玲 (導師)", "黃志強 (導師)", "張美美 (導師)", "李國華 (導師)", "趙子雲 (導師)", "錢順利 (訓育組長)", "孫美麗 (事務組長)", "周平安 (輔導組長)"]
+      };
+
+      document.getElementById('voter-school-title').innerText = currentVoteConfig.schoolName;
+      document.getElementById('voter-max-selectable').innerText = currentVoteConfig.maxSelectable;
+    }
+
+    function verifyVoterCode() {
+      const code = document.getElementById('voter_verify_code').value.trim();
+      if (code.length !== 8) {
+        document.getElementById('verify-error-msg').innerText = "驗證碼長度需為 8 位數字";
+        document.getElementById('verify-error-msg').style.display = 'block';
+        return;
+      }
+
+      // 驗證成功後切換至圈選卡片
+      document.getElementById('voter-step-verify').style.display = 'none';
+      document.getElementById('voter-step-ballot').style.display = 'block';
+      document.getElementById('voter-sticky-bar').style.display = 'flex';
+      renderCandidateCards();
+    }
+
+    function renderCandidateCards() {
+      const container = document.getElementById('candidate-grid-container');
+      container.innerHTML = '';
+
+      currentVoteConfig.candidates.forEach((candName, idx) => {
+        const card = document.createElement('div');
+        card.className = 'candidate-card';
+        card.setAttribute('data-name', candName);
+        card.onclick = () => toggleSelectCandidate(card, candName);
+
+        card.innerHTML = `
+          <i class="ri-checkbox-circle-fill check-icon"></i>
+          <div style="font-size: 1.2rem; font-weight: 700; color: #1e293b; margin-bottom: 4px;">${candName}</div>
+          <div style="font-size: 0.8rem; color: var(--text-muted);">候選人編號 ${idx + 1}</div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function toggleSelectCandidate(cardElement, name) {
+      if (cardElement.classList.contains('disabled') && !cardElement.classList.contains('selected')) {
+        return;
+      }
+
+      if (cardElement.classList.contains('selected')) {
+        cardElement.classList.remove('selected');
+        selectedCandidateNames = selectedCandidateNames.filter(n => n !== name);
+      } else {
+        if (selectedCandidateNames.length >= currentVoteConfig.maxSelectable) {
+          alert(`已達到應選上限 ${currentVoteConfig.maxSelectable} 人！`);
+          return;
+        }
+        cardElement.classList.add('selected');
+        selectedCandidateNames.push(name);
+      }
+
+      // 更新 Sticky 欄計數與鎖定狀態
+      document.getElementById('voter-selected-count').innerText = selectedCandidateNames.length;
+      updateCandidateCardDisabledState();
+    }
+
+    function updateCandidateCardDisabledState() {
+      const cards = document.querySelectorAll('.candidate-card');
+      const isMaxReached = selectedCandidateNames.length >= currentVoteConfig.maxSelectable;
+
+      cards.forEach(card => {
+        if (isMaxReached && !card.classList.contains('selected')) {
+          card.classList.add('disabled');
+        } else {
+          card.classList.remove('disabled');
+        }
+      });
+    }
+
+    function openConfirmModal() {
+      if (selectedCandidateNames.length === 0) {
+        alert("請至少圈選 1 位候選人！");
+        return;
+      }
+      document.getElementById('modal-selected-list').innerText = selectedCandidateNames.join('、');
+      document.getElementById('confirm-modal').style.display = 'flex';
+    }
+
+    function closeConfirmModal() {
+      document.getElementById('confirm-modal').style.display = 'none';
+    }
+
+    function submitFinalVote() {
+      closeConfirmModal();
+      document.getElementById('voter-step-ballot').style.display = 'none';
+      document.getElementById('voter-sticky-bar').style.display = 'none';
+      document.getElementById('voter-step-success').style.display = 'block';
+      document.getElementById('success-timestamp').innerText = new Date().toLocaleString('zh-TW');
+    }
+  </script>
+</body>
+</html>
