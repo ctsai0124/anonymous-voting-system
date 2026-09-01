@@ -84,6 +84,34 @@
       font-size: 0.75rem;
       color: #94a3b8;
     }
+    .nav-status {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+    .visit-counter-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      padding: 4px 9px;
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      background: rgba(30, 41, 59, 0.92);
+      color: #cbd5e1;
+      font-variant-numeric: tabular-nums;
+    }
+    .visit-counter-badge i,
+    .visit-counter-badge strong {
+      color: #bfdbfe;
+    }
+    @media (max-width: 720px) {
+      .navbar { padding: 0.85rem 1rem; }
+      .nav-container { align-items: flex-start; gap: 0.75rem; }
+      .brand-title { font-size: 1rem; }
+      .brand-sub { display: none; }
+      .nav-status { max-width: 145px; }
+    }
 
     /* 主容器 */
     .container {
@@ -205,6 +233,21 @@
       color: var(--primary);
     }
     .btn-outline:hover { background: var(--primary-light); }
+    /* 2026-08-11：按鈕 loading 狀態——按下後要呼叫後端 API 的按鈕（發布線上投票、
+       送出選票…）在等待回應期間會加上這個 class，讓使用者清楚看到「系統正在處理」，
+       不會以為沒反應而重複點擊。disabled 屬性本身也會一併鎖住，雙重防呆。 */
+    .btn:disabled, .btn.btn-loading {
+      opacity: 0.75;
+      cursor: not-allowed;
+    }
+    .btn-loading-spinner {
+      display: inline-block;
+      animation: btn-spin 0.8s linear infinite;
+    }
+    @keyframes btn-spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
 
     /* 名單預覽表格 */
     .table-wrapper {
@@ -256,6 +299,20 @@
       align-items: flex-start;
       gap: 10px;
     }
+
+    .tool-intro {
+      border: 1px solid #bfdbfe;
+      border-radius: var(--radius);
+      background: linear-gradient(135deg, #eff6ff, #f8fafc);
+      padding: 1.25rem;
+      margin-bottom: 1.5rem;
+    }
+    .tool-intro strong { color: #1e40af; }
+    .tool-intro > p { color: #475569; font-size: .92rem; line-height: 1.7; margin: .35rem 0 1rem; }
+    .tool-intro-flow { display: grid; grid-template-columns: repeat(4, 1fr); gap: .65rem; }
+    .tool-intro-flow span { background: #fff; border: 1px solid #dbeafe; border-radius: 8px; padding: .7rem .75rem; color: #475569; font-size: .8rem; line-height: 1.5; }
+    .tool-intro-flow b { display: block; color: var(--primary); margin-bottom: .15rem; }
+    @media (max-width: 720px) { .tool-intro-flow { grid-template-columns: 1fr 1fr; } }
 
     /* 投票者卡片選單 */
     .candidate-grid {
@@ -339,37 +396,80 @@
     }
 
     /* A4 列印模式 CSS */
+    @page {
+      size: A4;
+      margin: 0;
+    }
     @media print {
-      body * { visibility: hidden; }
-      #printable-ballot-area, #printable-ballot-area * { visibility: visible; }
-      #printable-ballot-area {
-        position: absolute;
-        left: 0; top: 0;
+      /* 第一版修法（用 visibility:hidden 搭配 position:static）會讓可列印區塊
+         排在畫面上其他「隱藏但仍占版面高度」的內容之後，導致印出來變空白。
+         改用 display:none 直接把其他區塊從版面移除（不占高度），只留下目前
+         開啟中的那個列印彈窗，可列印內容就會從第一頁頂端開始正常排版。 */
+      nav.navbar,
+      footer,
+      .container > *:not(.modal-overlay) { display: none !important; }
+      /* 改用 static 讓內容依正常文件流排版，人數多時才能正確跨頁列印，
+         而不是被 absolute/fixed 定位擠壓成單頁 */
+      #printable-ballot-area, #printable-roster-area, #printable-tally-area {
+        position: static;
         width: 100%;
         padding: 0;
         margin: 0;
+      }
+      /* 列印區域的祖層 Modal 原本是 position:fixed + max-height:90vh + overflow-y:auto
+         (畫面上用來讓彈窗可捲動)，這些屬性在列印時會把內容鎖死在一個視窗高度內，
+         導致人數一多、選票/名冊變長時被裁切或硬擠在同一頁。這裡把它們在列印時還原成
+         正常流排版，讓瀏覽器可以依內容實際高度自動分頁。 */
+      .modal-overlay {
+        position: static !important;
+        padding: 0 !important;
+        overflow: visible !important;
+      }
+      .modal-card {
+        max-width: none !important;
+        max-height: none !important;
+        overflow: visible !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+      }
+      .a4-preview {
+        box-shadow: none;
+        border: none;
+        min-height: 0;
+      }
+      /* 表格分頁優化：每頁都重複表頭、避免同一列被硬切成兩半 */
+      .ballot-table {
+        page-break-inside: auto;
+      }
+      .ballot-table thead {
+        display: table-header-group;
+      }
+      .ballot-table tr {
+        page-break-inside: avoid;
+        break-inside: avoid;
       }
       .no-print { display: none !important; }
     }
     .a4-preview {
       background: white;
       border: 1px solid #ccc;
-      padding: 2cm;
+      padding: 1.4cm;
       min-height: 29.7cm;
       width: 21cm;
+      box-sizing: border-box;
       margin: 0 auto;
       box-shadow: 0 0 10px rgba(0,0,0,0.1);
     }
     .ballot-table {
       width: 100%;
       border-collapse: collapse;
-      margin-top: 1rem;
+      margin-top: 0.6rem;
     }
     .ballot-table th, .ballot-table td {
       border: 1px solid #000;
-      padding: 10px;
+      padding: 5px 8px;
       text-align: center;
-      font-size: 1.1rem;
+      font-size: 0.92rem;
     }
 
     /* 頁尾 Footer */
@@ -395,8 +495,12 @@
           <div class="brand-sub">Leo Tsai 人事雲端工具站 ｜ leotsai.me</div>
         </div>
       </a>
-      <div>
+      <div class="nav-status" aria-label="網站狀態">
         <span class="badge badge-primary"><i class="ri-shield-check-line"></i> 零伺服器雙軌防護</span>
+        <span class="badge visit-counter-badge" title="同一瀏覽器 30 分鐘內計為一次造訪；自 2026/8/9 起統計">
+          <i class="ri-eye-line" aria-hidden="true"></i>
+          累計造訪 <strong data-site-visit-count aria-live="polite">—</strong> 次
+        </span>
       </div>
     </div>
   </nav>
@@ -407,7 +511,49 @@
     <!-- 1. 管理者建置介面 (預設顯示，當網址無 ?vote_id= 時) -->
     <div id="admin-view">
       <div class="card">
-      <div class="card">
+
+      <section class="tool-intro" aria-label="工具用途與使用流程">
+        <strong>這個工具做什麼</strong>
+        <p>從委員人數試算、人事名冊整理、線上／紙本無記名投票，到計票與簽呈文字一次完成。通行碼與選票分開保存，避免將投票內容回推到個人。</p>
+        <div class="tool-intro-flow">
+          <span><b>1 試算與設定</b>選委員會類型、人數與投票時間。</span>
+          <span><b>2 匯入名冊</b>自動過濾不符資格人員並確認候選人。</span>
+          <span><b>3 投票</b>發佈線上通行碼，或列印紙本選票雙軌進行。</span>
+          <span><b>4 結案</b>計票後產生名單、統計附件與簽呈文字。</span>
+        </div>
+      </section>
+
+      <!-- 0. 委員會類型選擇：教評會與考核會的法定組成規則、未兼行政門檻公式、簽呈法規
+           引用文字都不同，這個選項決定後面試算卡片、名冊標記選項、選票/計票單/簽呈
+           要套用哪一套規則。 -->
+      <div class="card" style="border: 2px solid var(--primary);">
+        <div class="card-header">
+          <i class="ri-guide-line"></i>
+          <div>
+            <div class="card-title">0. 委員會類型</div>
+            <div style="font-size: 0.85rem; color: var(--text-muted);">先選擇本次改選的委員會類型，下方試算、名冊標記、選票與計票單、簽呈文字都會自動套用對應的法規規則</div>
+          </div>
+        </div>
+        <div class="form-group">
+          <select id="committee_type" class="form-control" onchange="onCommitteeTypeChange()" style="font-size: 1.05rem; font-weight: 600;">
+            <option value="teacher_review">教師評審委員會（教評會）</option>
+            <option value="performance_review">教師成績考核委員會（考核會）</option>
+            <option value="joint">同時辦理（教評會＋考核會，同一份名冊、同一次投票）</option>
+          </select>
+          <div id="joint-mode-note" style="display: none; margin-top: 0.6rem; font-size: 0.85rem; color: #1e40af; background: #eff6ff; border: 1px solid #93c5fd; border-radius: 8px; padding: 10px 14px;">
+            <i class="ri-information-line"></i> 同時辦理模式：教師只需輸入「同一組」通行碼、投「同一次票」，就能一次圈選教評會與考核會兩份候選人名單；結案時系統會分別獨立計票、產生兩份獨立的公文簽案與統計表附件（不會合併成一份），寄在同一封結案信裡。
+          </div>
+          <!-- 2026-08-11：本站只做教評會/考核會的無記名投票，其他類型委員會（考績會、
+               甄審會、校事會議、性騷擾申訴、職場霸凌等）的組成試算要去 committee.leotsai.me
+               算，放在委員會類型選擇這邊最自然，選之前就先提醒使用者有沒有選錯站。 -->
+          <div style="margin-top: 0.6rem; font-size: 0.82rem; color: var(--text-muted); line-height: 1.6;">
+            <i class="ri-external-link-line"></i> 需要其他類型委員會的組成試算（考績會／甄審會／校事會議／性騷擾申訴／職場霸凌等）？
+            <a href="https://committee.leotsai.me/" target="_blank" rel="noopener" style="color: var(--primary); font-weight: 600; text-decoration: underline;">前往「學校各種委員會組成試算系統」↗</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" id="panel-tr-calc">
         <div class="card-header">
           <i class="ri-calculator-line"></i>
           <div>
@@ -465,6 +611,85 @@
         </div>
       </div>
 
+      <!-- 考核會試算與當然委員職稱設定：跟教評會固定 3 人的當然委員不同，各校教務/學務/
+           輔導/人事等處室主管數量不一定一樣，這裡讓管理者自訂當然委員「職稱」清單
+           （預設4主管+教師會代表共5人），姓名/性別之後在「人事名冊匯入」那一步從名冊
+           直接標記帶入，不用像教評會那樣手動輸入（因為主任本身就是教師，會出現在名冊裡）。 -->
+      <div class="card" id="panel-pr-calc" style="display: none;">
+        <div class="card-header">
+          <i class="ri-calculator-line"></i>
+          <div>
+            <div class="card-title">1. 考核會委員總人數與法定比例試算</div>
+            <div style="font-size: 0.85rem; color: var(--text-muted);">依據《公立高級中等以下學校教師成績考核辦法》第 9 條即時計算</div>
+          </div>
+        </div>
+
+        <!-- 2026-09-01：第9條但書──「參加考核之教師人數未滿20人者，得降低委員人數，最低
+             不得少於5人，其中當然委員至多2人」。這欄「參加考核教師人數」比照
+             committee.leotsai.me 的 b_pop 欄位做法：空白＝不判斷但書（維持法定 9～17 人），
+             填了且 <20 才放寬滑桿下限到 5，並把當然委員上限鎖到 2 人。 -->
+        <div class="form-grid" style="margin-bottom: 1rem;">
+          <div class="form-group">
+            <label for="pr_exam_count">參加考核教師人數 <small>(未滿 20 人者，第 9 條但書得降低委員人數；<b>空白＝不判斷但書</b>)</small></label>
+            <input type="number" id="pr_exam_count" class="form-control" min="0" placeholder="留空＝不判斷但書，維持 9～17 人" oninput="calculatePrComposition()">
+          </div>
+        </div>
+
+        <div class="form-grid" style="margin-bottom: 1.5rem;">
+          <div class="form-group">
+            <label for="pr_committee_total_n">考核會委員總額 <small id="pr_committee_total_range_hint">(法定 9 ～ 17 人，第 9 條第 2 款)</small></label>
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <input type="range" id="pr_committee_total_n" min="9" max="17" value="13" oninput="calculatePrComposition()" style="flex: 1; accent-color: var(--primary);">
+              <span id="pr_committee_n_val" style="font-size: 1.4rem; font-weight: 700; color: var(--primary); min-width: 45px; text-align: right;">13 人</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="alert-box" id="pr-proviso-notice" style="display: none; margin-bottom: 1.5rem;">
+          <i class="ri-information-line" style="font-size: 1.2rem;"></i>
+          <div id="pr-proviso-notice-text"></div>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label>當然委員職稱清單 <small style="display: block; font-weight: 400; color: var(--text-muted);">預設「教務/學務/輔導/人事」4位主管＋教師會代表，各校處室主管數量不同，可自行增減。之後在「人事名冊匯入」步驟直接從名冊點選標記這些人，系統會自動帶入姓名/性別並排除其被選舉權。</small></label>
+          <div id="pr-role-chip-list" style="display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0;"></div>
+          <div style="display: flex; gap: 8px;">
+            <input type="text" id="pr-role-new-input" class="form-control" placeholder="新增當然委員職稱，例如：總務主任" style="flex: 1;">
+            <button class="btn btn-outline" onclick="addPrExOfficioRole()"><i class="ri-add-line"></i> 新增</button>
+          </div>
+        </div>
+
+        <!-- 試算結果即時資訊卡 -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 1.5rem;">
+          <div style="background: #f1f5f9; padding: 1rem; border-radius: 10px; border-left: 4px solid var(--primary);">
+            <div style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">👑 當然委員</div>
+            <div style="font-size: 1.5rem; font-weight: 700; color: #1e293b;" id="pr-calc-ex-officio">5 人</div>
+            <div style="font-size: 0.75rem; color: var(--text-muted);">依上方職稱清單人數</div>
+          </div>
+          <div style="background: #eff6ff; padding: 1rem; border-radius: 10px; border-left: 4px solid #3b82f6;">
+            <div style="font-size: 0.8rem; color: #1e40af; font-weight: 600;">🗳️ 選任 (票選) 委員</div>
+            <div style="font-size: 1.5rem; font-weight: 700; color: var(--primary);" id="pr-calc-elected">8 人</div>
+            <div style="font-size: 0.75rem; color: #1e40af;">全體專任教師票選產生</div>
+          </div>
+          <div style="background: #ecfdf5; padding: 1rem; border-radius: 10px; border-left: 4px solid var(--success);">
+            <div style="font-size: 0.8rem; color: #065f46; font-weight: 600;">⚖️ 未兼行政下限 (每滿3人1位)</div>
+            <div style="font-size: 1.5rem; font-weight: 700; color: var(--success);" id="pr-calc-non-admin">4 人</div>
+            <div style="font-size: 0.75rem; color: #065f46;">計算時排除教師會代表</div>
+          </div>
+          <div style="background: #fef3c7; padding: 1rem; border-radius: 10px; border-left: 4px solid var(--warning);">
+            <div style="font-size: 0.8rem; color: #92400e; font-weight: 600;">🚻 任一性別下限 (≧ 1/3)</div>
+            <div style="font-size: 1.5rem; font-weight: 700; color: var(--warning);" id="pr-calc-gender">5 人</div>
+            <div style="font-size: 0.75rem; color: #92400e;">人數較少性別保障名額</div>
+          </div>
+        </div>
+
+        <div style="text-align: right;">
+          <button class="btn btn-outline" style="font-size: 0.85rem;" onclick="applyPrElectedToMaxSelectable()">
+            <i class="ri-arrow-down-line"></i> 一鍵帶入「選任票選人數」為圈選上限
+          </button>
+        </div>
+      </div>
+
       <!-- 發起投票活動基本設定 -->
       <div class="card">
         <div class="card-header">
@@ -485,8 +710,12 @@
             <input type="email" id="admin_email" class="form-control" placeholder="例如：admin@school.edu.tw">
           </div>
           <div class="form-group">
-            <label>票選委員應選人數 (圈選上限人次) <small style="display: block; font-weight: 400; color: var(--text-muted);">例：總額 11 人扣除當然委員 3 人，本次要投票選出 8 人</small></label>
+            <label id="max-selectable-label">票選委員應選人數 (圈選上限人次) <small style="display: block; font-weight: 400; color: var(--text-muted);">例：總額 11 人扣除當然委員 3 人，本次要投票選出 8 人</small></label>
             <input type="number" id="max_selectable" class="form-control" value="8" min="1" max="20" onchange="updateLegalNotice()">
+          </div>
+          <div class="form-group" id="max-selectable-pr-group" style="display: none;">
+            <label>考核會票選委員應選人數 (圈選上限人次) <small style="display: block; font-weight: 400; color: var(--text-muted);">同時辦理模式專用：教評會與考核會可各自設定不同的應選人數</small></label>
+            <input type="number" id="max_selectable_pr" class="form-control" value="8" min="1" max="20" onchange="updateLegalNotice()">
           </div>
           <div class="form-group">
             <label>投票開始時間</label>
@@ -495,6 +724,64 @@
           <div class="form-group">
             <label>投票結束時間 (時間到自動結案發信)</label>
             <input type="datetime-local" id="end_time" class="form-control">
+          </div>
+        </div>
+
+        <!-- 2026-08-10：新增當然委員 3 人的姓名/性別。這 3 人不是從名冊匯入或投票選出來的，
+             系統原本完全不知道他們是誰，導致結案信裡「任一性別委員人數不得少於委員總額三分之一」
+             這句話沒辦法算「委員總額」（11人）的真實性別比例，只能算選舉委員 8 人。
+             性別欄位手動選（不像選舉委員能從身分證字號自動判別），未填就留空，
+             結案信會清楚註明是否有把當然委員納入計算。 -->
+        <div class="alert-box" id="panel-tr-exofficio" style="margin-top: 1.5rem;">
+          <i class="ri-user-star-line" style="font-size: 1.2rem;"></i>
+          <div style="width: 100%;">
+            <strong>當然委員（選填，用於結案信正確計算「委員總額」性別比例）：</strong>
+            <div style="font-size: 0.85rem; color: var(--text-muted); margin: 4px 0 10px;">校長、家長會代表、教師會代表這 3 人不會從名冊或投票產生，系統無法自動得知。若填寫姓名與性別，結案信第五項的性別比例會把這 3 人一起算進「委員總額」；不填則只計算 8 位選舉委員的部分，並會在信中註明。</div>
+            <div class="form-grid">
+              <div class="form-group">
+                <label>校長姓名</label>
+                <input type="text" id="ex_principal_name" class="form-control" placeholder="選填">
+              </div>
+              <div class="form-group">
+                <label>校長性別</label>
+                <select id="ex_principal_gender" class="form-control">
+                  <option value="">未填寫</option>
+                  <option value="M">男</option>
+                  <option value="F">女</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>家長會代表姓名</label>
+                <input type="text" id="ex_parent_name" class="form-control" placeholder="選填">
+              </div>
+              <div class="form-group">
+                <label>家長會代表性別</label>
+                <select id="ex_parent_gender" class="form-control">
+                  <option value="">未填寫</option>
+                  <option value="M">男</option>
+                  <option value="F">女</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>教師會代表姓名</label>
+                <input type="text" id="ex_teacherassoc_name" class="form-control" placeholder="選填">
+              </div>
+              <div class="form-group">
+                <label>教師會代表性別</label>
+                <select id="ex_teacherassoc_gender" class="form-control">
+                  <option value="">未填寫</option>
+                  <option value="M">男</option>
+                  <option value="F">女</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="alert-box" id="panel-pr-exofficio-note" style="display: none; background: #eff6ff; border-left-color: var(--primary); color: #1e3a8a;">
+          <i class="ri-information-line" style="font-size: 1.2rem;"></i>
+          <div>
+            <strong>考核會當然委員：</strong>不用在這裡手動輸入。教務/學務/輔導/人事等處室主管與教師會代表本身就是教師，會出現在下方「人事名冊匯入」的名單中——匯入名冊後，直接在該筆資料的「當然委員標記」欄位點選對應職稱即可，系統會自動帶入姓名/性別，並將該員從候選人（被選舉權）名單中排除。
           </div>
         </div>
       </div>
@@ -523,6 +810,21 @@
           <input type="file" id="file-input" accept=".csv, .xlsx, .xls" style="display: none;" onchange="handleFileSelect(event)">
         </div>
 
+        <!-- 2026-08-11：一鍵範例名冊——比照 overtime-pay-tool 的做法，讓使用者（尤其手機上
+             很難自己整理/上傳 WebHR 檔案）不用準備真實名冊也能馬上試完整個流程。範例資料
+             涵蓋教評會＋考核會＋同時辦理三種模式測試情境：4 位可標記為考核會當然委員的
+             處室主管（教務/學務/輔導/人事主任）＋ 1 位可標記為教師會代表的一般教師＋
+             其餘一般教師，人數足夠讓試算出來的人數／比例門檻乾淨無警告。 -->
+        <div style="margin-top: 1rem; padding: 16px 18px; border: 1px dashed #f59e0b; border-radius: 4px 16px; background: #fffbeb;">
+          <div style="font-weight: 700; color: #92400e;">🧪 沒有現成名冊？一鍵試用範例資料</div>
+          <p style="margin: 8px 0 12px; color: var(--text-muted); font-size: 0.85rem; line-height: 1.7;">
+            以下是<strong>虛構示範名冊</strong>（假姓名、假身分證字號，非真實人員），共 17 位，格式與 WebHR 匯出的職員名籍冊完全對齊。按下方按鈕即可自動匯入，並依目前選擇的委員會類型示範標記好幾位當然委員（教務/學務/輔導主任、人事主任、教師會代表），不用自己準備或上傳檔案就能試完整個流程。<strong>正式選務請改上傳貴校真實 WebHR 名冊。</strong>
+          </p>
+          <button class="btn" id="load-sample-roster" type="button" style="background: #f59e0b; border-color: #f59e0b; color: #fff; padding: 11px 20px; font-size: 0.9rem;" onclick="loadSampleRoster()">
+            <i class="ri-flashlight-line"></i> 使用範例名冊試用
+          </button>
+        </div>
+
         <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem; flex-wrap: wrap; gap: 10px;">
           <div style="display: flex; gap: 10px; flex-wrap: wrap;">
             <button class="btn btn-outline" onclick="downloadCsvTemplate()">
@@ -538,7 +840,7 @@
         <!-- 法規提示 -->
         <div class="alert-box" id="legal-notice-box">
           <i class="ri-information-line" style="font-size: 1.2rem;"></i>
-          <div>
+          <div id="legal-notice-content">
             <strong>《高級中等以下學校教師評審委員會設置辦法》第 3 條規範提示：</strong><br>
             「未兼行政教師人數，不得少於委員總額二分之一。」<br>
             當前應選上限為 <span id="notice-max-count">2</span> 人 ➡️ <strong>未兼行政教師至少需占 1 人以上</strong>。
@@ -556,12 +858,14 @@
                 <th>身分分類</th>
                 <th>8碼通行碼 (驗證碼)</th>
                 <th>投票權</th>
-                <th>被選舉權 (登載於選票)</th>
+                <th id="voter-table-candidacy-header">被選舉權 (登載於選票)</th>
+                <th id="voter-table-exofficio-header" style="display: none;">當然委員標記</th>
+                <th id="voter-table-pr-candidacy-header" style="display: none;">考核會候選人</th>
               </tr>
             </thead>
             <tbody id="voter-table-body">
               <tr>
-                <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 2rem;">
+                <td colspan="9" style="text-align: center; color: var(--text-muted); padding: 2rem;">
                   請上傳人事系統 CSV/Excel 檔案以載入名單
                 </td>
               </tr>
@@ -569,22 +873,59 @@
           </table>
         </div>
 
-        <!-- 多軌建立按鈕 -->
-        <div class="btn-group" style="justify-content: flex-end; margin-top: 2rem;">
-          <button class="btn btn-secondary" onclick="generatePaperBallot()">
-            <i class="ri-printer-line"></i> 【按鈕 1】產製紙本選票 (A4 列印)
-          </button>
-          <button class="btn btn-secondary" onclick="generateSignRoster()">
-            <i class="ri-file-list-3-line"></i> 【按鈕 2】產製選票簽收清冊 (A4 簽名冊)
-          </button>
-          <button class="btn btn-secondary" onclick="generateTallySheet()">
-            <i class="ri-bar-chart-2-line"></i> 【按鈕 3】產製開票計票單 (A4 當選表)
-          </button>
-          <button class="btn btn-primary" onclick="deployOnlineVote()">
-            <i class="ri-send-plane-fill"></i> 【按鈕 4】發布線上無記名投票 (GAS API)
-          </button>
+        <!-- 投票模式選擇：紙本 / 線上為兩種互斥的獨立作業方式，非同一流程的循序步驟 -->
+        <div style="margin-top: 2rem;">
+          <div class="alert-box" style="background: #fef3c7; border-left-color: var(--warning); color: #92400e;">
+            <i class="ri-alert-line" style="font-size: 1.2rem;"></i>
+            <div>
+              <strong>請注意：</strong>下方「紙本投票模式」與「線上投票模式」是兩種<strong>互斥的獨立作業方式</strong>，請依貴校實際採用的投票方式<strong>擇一使用</strong>對應區塊的功能即可，不需要、也不應該兩邊都執行。
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.5rem; margin-top: 1.5rem;">
+
+            <!-- 紙本投票模式 -->
+            <div style="border: 2px solid #cbd5e1; border-radius: var(--radius); padding: 1.5rem; background: #f8fafc;">
+              <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 0.5rem;">
+                <i class="ri-printer-line" style="font-size: 1.4rem; color: #475569;"></i>
+                <span style="font-size: 1.1rem; font-weight: 700; color: #1e293b;">紙本投票模式</span>
+                <span class="badge badge-warning">實體現場作業</span>
+              </div>
+              <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
+                現場列印選票、當場投票、人工開票計票。以下三個按鈕彼此獨立，各自產製一份 A4 文件，可依需要單獨使用，系統不會記錄任何投票結果。
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                <button class="btn btn-secondary" style="width: 100%; justify-content: flex-start;" onclick="generatePaperBallot()">
+                  <i class="ri-printer-line"></i> 產製紙本選票 (A4 列印)
+                </button>
+                <button class="btn btn-secondary" style="width: 100%; justify-content: flex-start;" onclick="generateSignRoster()">
+                  <i class="ri-file-list-3-line"></i> 產製選票簽收清冊 (A4 簽名冊)
+                </button>
+                <button class="btn btn-secondary" style="width: 100%; justify-content: flex-start;" onclick="generateTallySheet()">
+                  <i class="ri-bar-chart-2-line"></i> 產製開票計票單 (A4 當選表)
+                </button>
+              </div>
+            </div>
+
+            <!-- 線上投票模式 -->
+            <div style="border: 2px solid var(--primary); border-radius: var(--radius); padding: 1.5rem; background: var(--primary-light);">
+              <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 0.5rem;">
+                <i class="ri-send-plane-fill" style="font-size: 1.4rem; color: var(--primary);"></i>
+                <span style="font-size: 1.1rem; font-weight: 700; color: #1e293b;">線上投票模式</span>
+                <span class="badge badge-primary">GAS 雲端無記名投票</span>
+              </div>
+              <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
+                直接發布一個線上投票活動，系統會產生投票連結、依名冊核發通行碼、匿名收票，並於截止時間到後自動開票、寄送統計結果與簽案草稿給你。
+              </div>
+              <button class="btn btn-primary" id="deploy-vote-btn" style="width: 100%;" onclick="deployOnlineVote()">
+                <i class="ri-send-plane-fill"></i> 發布線上無記名投票
+              </button>
+            </div>
+
+          </div>
         </div>
       </div>
+    </div>
     </div>
 
 
@@ -597,7 +938,7 @@
           <span style="font-size: 0.85rem; color: #94a3b8;">學校單位：</span>
           <strong id="voter-school-title">載入中...</strong>
         </div>
-        <div>
+        <div id="voter-sticky-progress">
           <span style="font-size: 0.9rem;">應選上限：<span id="voter-max-selectable">0</span> 人 ｜ 已圈選：<strong id="voter-selected-count" style="color: var(--warning); font-size: 1.2rem;">0</strong> 人</span>
         </div>
       </div>
@@ -617,7 +958,7 @@
             <label>8 位數驗證碼（身分證後 4 碼 + 生日 MMDD 4 碼）</label>
             <input type="password" id="voter_verify_code" class="form-control" placeholder="例如：56780825" maxlength="8" inputmode="numeric" style="font-size: 1.5rem; letter-spacing: 4px; text-align: center;">
           </div>
-          <button class="btn btn-primary" style="width: 100%; justify-content: center;" onclick="verifyVoterCode()">
+          <button class="btn btn-primary" id="voter-verify-btn" style="width: 100%; justify-content: center;" onclick="verifyVoterCode()">
             <i class="ri-key-2-line"></i> 驗證身份並載入選票
           </button>
           <div id="verify-error-msg" style="color: var(--danger); font-size: 0.9rem; margin-top: 1rem; display: none;"></div>
@@ -629,13 +970,30 @@
         <div class="card-header">
           <i class="ri-checkbox-multiple-line"></i>
           <div>
-            <div class="card-title">請圈選教評會委員候選人</div>
+            <div class="card-title" id="voter-ballot-title">請圈選教評會委員候選人</div>
             <div style="font-size: 0.85rem; color: var(--text-muted);">點擊卡片即可勾選，至少選 1 人，最多不得超過應選上限</div>
           </div>
         </div>
 
+        <!-- 同時辦理模式：這一區塊固定是「教評會」的候選人（單選模式時就是唯一的一組），
+             跟考核會那一組（下方 candidate-grid-container-pr）各自獨立勾選、互不影響，
+             但兩邊會在同一次 submit_vote 一起送出。 -->
+        <div id="voter-section-tr-label" style="display: none; font-weight: 700; color: #1e40af; margin-bottom: 0.5rem;">Part A：教評會候選人</div>
+        <div id="voter-tr-progress" style="display: none; font-size: 0.9rem; color: var(--text-muted); margin-bottom: 0.8rem;">
+          應選上限：<span id="voter-max-selectable-inline">0</span> 人 ｜ 已圈選：<strong id="voter-selected-count-inline" style="color: var(--warning);">0</strong> 人
+        </div>
         <div class="candidate-grid" id="candidate-grid-container">
-          <!-- 動態載入候選人卡片 -->
+          <!-- 動態載入教評會候選人卡片 -->
+        </div>
+
+        <div id="voter-section-pr" style="display: none; margin-top: 2rem; padding-top: 1.5rem; border-top: 2px dashed #cbd5e1;">
+          <div style="font-weight: 700; color: #b45309; margin-bottom: 0.5rem;">Part B：考核會候選人</div>
+          <div style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 0.8rem;">
+            應選上限：<span id="voter-max-selectable-pr">0</span> 人 ｜ 已圈選：<strong id="voter-selected-count-pr" style="color: var(--warning);">0</strong> 人
+          </div>
+          <div class="candidate-grid" id="candidate-grid-container-pr">
+            <!-- 動態載入考核會候選人卡片 -->
+          </div>
         </div>
 
         <div style="text-align: center; margin-top: 2rem;">
@@ -675,8 +1033,8 @@
         <!-- 顯示選取的名單 -->
       </div>
       <div style="display: flex; justify-content: flex-end; gap: 1rem;">
-        <button class="btn btn-secondary" onclick="closeConfirmModal()">返回修改</button>
-        <button class="btn btn-primary" onclick="submitFinalVote()"><i class="ri-check-line"></i> 確定送出選票</button>
+        <button class="btn btn-secondary" id="submit-vote-cancel-btn" onclick="closeConfirmModal()">返回修改</button>
+        <button class="btn btn-primary" id="submit-vote-btn" onclick="submitFinalVote()"><i class="ri-check-line"></i> 確定送出選票</button>
       </div>
     </div>
   </div>
@@ -694,10 +1052,10 @@
       
       <!-- 可列印區域 -->
       <div id="printable-ballot-area">
-        <div class="a4-preview" style="font-family: '標楷體', 'PMingLiU', serif; line-height: 1.8; color: #000;">
-          <h2 style="text-align: center; font-size: 1.5rem; margin-bottom: 1rem;" id="print-school-title">高雄市OO區OO國民小學 114 學年度教師評審委員會選舉選票單</h2>
-          
-          <div style="font-size: 0.9rem; margin-bottom: 1rem; text-align: justify; border-bottom: 2px solid #000; padding-bottom: 12px;">
+        <div class="a4-preview" style="font-family: '標楷體', 'PMingLiU', serif; line-height: 1.4; color: #000; font-size: 0.94rem;">
+          <h2 style="text-align: center; font-size: 1.25rem; margin-bottom: 0.6rem;" id="print-school-title">高雄市OO區OO國民小學 114 學年度教師評審委員會選舉選票單</h2>
+
+          <div id="ballot-legal-block" style="font-size: 0.82rem; line-height: 1.5; margin-bottom: 0.6rem; text-align: justify; border-bottom: 2px solid #000; padding-bottom: 8px;">
             <strong>壹、說明：</strong><br>
             一、本次選舉請以無記名方式票選您心目中理想人員擔任委員，期許結合多數教師的智慧，以公正、公平、公開原則共同為本校妥善處理教師的聘任及重要權益等事項。<br>
             二、依據高級中等以下學校教師評審委員會設置辦法第3條規定略以，教師評審委員會包括校長、家長會代表、教師會代表（由教師會推選代表）各一人為當然委員，餘由全體教師選 (推) 舉之。又本會委員中未兼行政之教師不得少於委員總額二分之一，任一性別委員人數不得少於委員總額三分之一。<br>
@@ -721,7 +1079,7 @@
             </tbody>
           </table>
 
-          <div style="margin-top: 2cm; display: flex; justify-content: space-between; font-size: 1.05rem;">
+          <div style="margin-top: 1cm; display: flex; justify-content: space-between; font-size: 0.95rem;">
             <div><strong>發票人簽章：</strong> _______________</div>
             <div><strong>監票人簽章：</strong> _______________</div>
             <div><strong>印製日期：</strong> <span id="print-date"></span></div>
@@ -793,9 +1151,9 @@
       
       <!-- 可列印區域 -->
       <div id="printable-roster-area">
-        <div class="a4-preview" style="font-family: '標楷體', 'PMingLiU', serif; line-height: 1.8; color: #000;">
-          <h2 style="text-align: center; font-size: 1.4rem; margin-bottom: 0.2rem;" id="print-roster-school-title">高雄市OO區OO國民小學 115 學年度教師評審委員會</h2>
-          <h3 style="text-align: center; font-size: 1.3rem; margin-bottom: 1.5rem;">暨教師成績考核委員會選舉選票 簽收清冊</h3>
+        <div class="a4-preview" style="font-family: '標楷體', 'PMingLiU', serif; line-height: 1.4; color: #000; font-size: 0.94rem;">
+          <h2 style="text-align: center; font-size: 1.2rem; margin-bottom: 0.2rem;" id="print-roster-school-title">高雄市OO區OO國民小學 115 學年度教師評審委員會</h2>
+          <h3 style="text-align: center; font-size: 1.1rem; margin-bottom: 0.7rem;" id="print-roster-subtitle">選舉選票 簽收清冊</h3>
           
           <table class="ballot-table">
             <thead>
@@ -811,7 +1169,7 @@
             </tbody>
           </table>
 
-          <div style="margin-top: 2cm; display: flex; justify-content: space-between; font-size: 1.05rem;">
+          <div style="margin-top: 1cm; display: flex; justify-content: space-between; font-size: 0.95rem;">
             <div><strong>承辦人簽章：</strong> _______________</div>
             <div><strong>人事主任簽章：</strong> _______________</div>
             <div><strong>列印日期：</strong> <span id="print-roster-date"></span></div>
@@ -835,10 +1193,10 @@
       
       <!-- 可列印區域 -->
       <div id="printable-tally-area">
-        <div class="a4-preview" style="font-family: '標楷體', 'PMingLiU', serif; line-height: 1.8; color: #000; width: 100%;">
-          <h2 style="text-align: center; font-size: 1.4rem; margin-bottom: 1rem;" id="print-tally-school-title">高雄市OO區OO國民小學 114 學年度教師評審委員會選舉計票單</h2>
-          
-          <table class="ballot-table" style="font-size: 0.95rem;">
+        <div class="a4-preview" style="font-family: '標楷體', 'PMingLiU', serif; line-height: 1.4; color: #000; width: 100%; font-size: 0.9rem;">
+          <h2 style="text-align: center; font-size: 1.2rem; margin-bottom: 0.6rem;" id="print-tally-school-title">高雄市OO區OO國民小學 114 學年度教師評審委員會選舉計票單</h2>
+
+          <table class="ballot-table" style="font-size: 0.85rem;">
             <thead>
               <tr style="background: #f8fafc;">
                 <th style="width: 10%;">序號</th>
@@ -853,15 +1211,15 @@
             </tbody>
           </table>
 
-          <div style="margin: 1.5rem 0; display: flex; justify-content: space-between; font-size: 1.1rem; font-weight: bold;">
+          <div style="margin: 0.7rem 0; display: flex; justify-content: space-between; font-size: 0.95rem; font-weight: bold;">
             <div>計票人：__________________</div>
             <div>監票人：__________________</div>
           </div>
 
-          <div style="border-top: 2px solid #000; padding-top: 1rem; margin-top: 1.5rem;">
-            <h3 style="font-size: 1.2rem; margin-bottom: 0.8rem;">★ 票選委員正取及備取當選名單及票數表：</h3>
-            
-            <table class="ballot-table" style="font-size: 0.95rem;">
+          <div style="border-top: 2px solid #000; padding-top: 0.6rem; margin-top: 0.7rem;">
+            <h3 style="font-size: 1rem; margin-bottom: 0.4rem;">★ 票選委員正取及備取當選名單及票數表：</h3>
+
+            <table class="ballot-table" style="font-size: 0.85rem;">
               <thead>
                 <tr style="background: #f1f5f9;">
                   <th style="width: 15%;">類別</th>
@@ -872,24 +1230,24 @@
               <tbody>
                 <tr>
                   <td style="font-weight: bold; text-align: center; background: #e0f2fe;">正取委員</td>
-                  <td id="print-tally-elected-names" style="font-weight: bold; line-height: 2.0;">（依開票與抽籤結果填入）</td>
+                  <td id="print-tally-elected-names" style="font-weight: bold; line-height: 1.3;">（依開票與抽籤結果填入）</td>
                   <td>正取共 <strong id="print-tally-elected-count">8</strong> 名</td>
                 </tr>
                 <tr>
                   <td style="font-weight: bold; text-align: center; background: #fef3c7;">備取委員</td>
-                  <td id="print-tally-alternate-names" style="line-height: 2.0;">（於當選委員因故不能擔任時依序遞補之）</td>
+                  <td id="print-tally-alternate-names" style="line-height: 1.3;">（於當選委員因故不能擔任時依序遞補之）</td>
                   <td>備取共 <strong>5</strong> 名</td>
                 </tr>
               </tbody>
             </table>
 
-            <div style="font-size: 0.85rem; margin-top: 1rem; color: #333; line-height: 1.7;">
+            <div style="font-size: 0.78rem; margin-top: 0.5rem; color: #333; line-height: 1.35;">
               ※ 依規定委員中未兼行政職務之教師應至少為 <span id="print-tally-non-admin-min">6</span> 人，任一性別委員人數應至少為 <span id="print-tally-gender-min">4</span> 人。<br>
-              ※ 當然委員：校長、家長會代表、教師會代表。
+              ※ 當然委員：<span id="print-tally-exofficio-desc">校長、家長會代表、教師會代表</span>。
             </div>
           </div>
 
-          <div style="margin-top: 2cm; display: flex; justify-content: space-between; font-size: 1.05rem;">
+          <div style="margin-top: 0.8cm; display: flex; justify-content: space-between; font-size: 0.9rem;">
             <div><strong>發票人簽章：</strong> _______________</div>
             <div><strong>監票人簽章：</strong> _______________</div>
             <div><strong>印製日期：</strong> <span id="print-tally-date"></span></div>
@@ -910,9 +1268,90 @@
   <script>
     // 全域變數
     let parsedVotersList = []; // 全體合格教師名單 (含 8 碼 Passcode 與分類)
+    // 考核會當然委員「職稱」清單：各校教務/學務/輔導/人事等處室主管數量不一定一樣，
+    // 用陣列讓管理者自行增減，不寫死人數。教師會代表固定保留在清單裡（法規明文規定要有）。
+    let prExOfficioRoles = ["教務主任", "學務主任", "輔導主任", "人事主任", "教師會代表"];
+
+    // 2026-09-01：第9條但書「當然委員至多2人」的共用判斷，calculatePrComposition() 與
+    // 「一鍵帶入選任人數」都要用同一份邏輯，不要各自算一次以免兩邊算出不同答案。
+    function isPrProvisoActive() {
+      const examCountRaw = document.getElementById('pr_exam_count').value;
+      const examCount = examCountRaw === '' ? null : parseInt(examCountRaw);
+      const small = examCount !== null && !isNaN(examCount) && examCount < 20;
+      const n = parseInt(document.getElementById('pr_committee_total_n').value) || 13;
+      return small && n < 9;
+    }
+    function getPrEffectiveExOfficioCount() {
+      return isPrProvisoActive() ? Math.min(2, prExOfficioRoles.length) : prExOfficioRoles.length;
+    }
+
     let currentVoteConfig = null; // 當前活動設定
-    let selectedCandidateNames = []; // 投票者當前勾選的名單
-    const GAS_API_URL = "YOUR_GAS_WEB_APP_URL"; // 開發者發布 GAS 後替換此處 URL
+    let selectedCandidateNames = []; // 投票者當前勾選的名單（同時辦理模式下這是「教評會」那一份）
+    let selectedCandidateNamesPr = []; // 同時辦理模式專用：考核會那一份圈選名單，跟上面完全獨立
+    let enteredVerifyCode = ""; // 投票者輸入的 8 碼通行碼（送出選票時才連同勾選結果一起打包給 GAS 驗證）
+    const GAS_API_URL = "https://script.google.com/macros/s/AKfycbw4YAGyjjS53p1LmuWDDKEiamSG-lSn9zlYzNzNr5EhYexW99ATHcnNDcbWYkpSx7VB/exec"; // 開發者發布 GAS 後替換此處 URL
+    // 2026-09-01：建立投票活動 (action:"setup") 專用的固定密鑰，網頁自動夾帶，同仁不用
+    // 輸入任何東西。這只是擋掉「沒看過這個頁面、直接亂打 API」的隨機攻擊/掃描工具——
+    // 前端原始碼本來就公開，這組值不是真正的機密，後端真正的防護是 Script Properties
+    // 裡另外存的同一組值（Code.gs 原始碼裡看不到），兩邊要一致 API 才會放行。
+    const SETUP_API_SECRET = "ITx5xeoKqasEFQt2wtObT50zwitYl7j6";
+
+    // 2026-08-10：原本這裡只有宣告 GAS_API_URL，實際上整個檔案沒有任何地方真的
+    // fetch 這個網址——建立活動、載入候選人、驗證通行碼、送出選票四個環節都只是
+    // 前端寫死的假資料/假流程（模擬 UI，沒有真的打 GAS）。這個 callGasApi 是真正
+    // 會呼叫 Code.gs 的入口，故意用 text/plain 當 Content-Type（而不是
+    // application/json）：GAS Web App 對 CORS 的 preflight（OPTIONS）支援不完整，
+    // 用 text/plain 可以避免瀏覽器發出 preflight，doPost 端還是能正常用
+    // e.postData.contents 解析出 JSON。
+    async function callGasApi(payload) {
+      if (!GAS_API_URL || GAS_API_URL === "YOUR_GAS_WEB_APP_URL") {
+        throw new Error("後端尚未連接：管理者還沒有把 Google Apps Script 部署後的 Web App 網址填入 GAS_API_URL，目前無法建立/讀取真實投票活動。");
+      }
+      let response;
+      try {
+        response = await fetch(GAS_API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify(payload),
+        });
+      } catch (networkErr) {
+        throw new Error("無法連線到後端服務，請確認網路連線或稍後再試。");
+      }
+      let result;
+      try {
+        result = await response.json();
+      } catch (parseErr) {
+        throw new Error("後端回應格式異常，請確認 GAS_API_URL 是否為正確的 Web App 網址。");
+      }
+      if (result.status !== "success") {
+        throw new Error(result.message || "後端回應失敗，請稍後再試。");
+      }
+      return result;
+    }
+
+    // 2026-08-11：按鈕 loading 狀態共用工具——按下會呼叫 GAS API 的按鈕（發布線上投票、
+    // 送出選票…）在等待回應期間，網路慢的時候使用者常常搞不清楚系統到底有沒有反應、
+    // 容易連點好幾次。呼叫端在 await callGasApi(...) 之前先
+    // setButtonLoading(btn, true, "發布中…")，成功或失敗都要在 finally 呼叫
+    // setButtonLoading(btn, false) 恢復，兩邊都要做才不會讓按鈕卡在 loading 狀態。
+    function setButtonLoading(btn, isLoading, loadingText) {
+      if (!btn) return;
+      if (isLoading) {
+        if (btn.dataset.origHtml === undefined) {
+          btn.dataset.origHtml = btn.innerHTML;
+        }
+        btn.disabled = true;
+        btn.classList.add('btn-loading');
+        btn.innerHTML = '<i class="ri-loader-4-line btn-loading-spinner"></i> ' + (loadingText || '處理中…');
+      } else {
+        btn.disabled = false;
+        btn.classList.remove('btn-loading');
+        if (btn.dataset.origHtml !== undefined) {
+          btn.innerHTML = btn.dataset.origHtml;
+          delete btn.dataset.origHtml;
+        }
+      }
+    }
 
     // 頁面初始化
     window.onload = function() {
@@ -922,8 +1361,11 @@
       document.getElementById('start_time').value = formatDateForInput(now);
       document.getElementById('end_time').value = formatDateForInput(end);
 
-      // 初始化教評會組成試算
+      // 初始化教評會組成試算 + 考核會組成試算/當然委員職稱清單（兩邊都先算好，
+      // 切換委員會類型時不用重新觸發計算，只是切換顯示哪一組面板）
       calculateCommitteeComposition();
+      renderPrRoleChips();
+      calculatePrComposition();
 
       // 檢查 URL 是否帶有 vote_id 參數
       const urlParams = new URLSearchParams(window.location.search);
@@ -977,12 +1419,271 @@
       updateLegalNotice();
     }
 
-    // 更新法規提示
+    // 更新法規提示（依委員會類型套用不同法規門檻公式與條文引用）
+    // 2026-08-11：原本這裡自己算了一次 floor(maxCount/3)，跟 computeCommitteeNumbers()
+    // 內部真正用來算選票/計票單/發布活動門檻的公式（會把當然委員人數、排除教師會代表
+    // 都算進去）不一致，數字對不起來會誤導管理者。改成直接呼叫同一份試算，只有一套
+    // 數字來源。
     function updateLegalNotice() {
-      const maxCount = parseInt(document.getElementById('max_selectable').value) || 1;
-      const minNonAdmin = Math.ceil(maxCount / 2);
-      document.getElementById('notice-max-count').innerText = maxCount;
-      document.getElementById('legal-notice-box').querySelector('strong:last-child').innerText = `未兼行政教師至少需占 ${minNonAdmin} 人以上`;
+      const type = getCommitteeType();
+      const content = document.getElementById('legal-notice-content');
+      // 2026-08-11：同時辦理模式兩套法規門檻同時適用，分別各自試算一次列出，
+      // 不套用單一委員會的分支文字（避免只顯示其中一邊、讓另一邊看起來像沒被檢查）。
+      if (type === 'joint') {
+        const numTr = computeCommitteeNumbers('teacher_review');
+        const numPr = computeCommitteeNumbers('performance_review');
+        content.innerHTML = `
+          <strong>同時辦理模式，兩套法規門檻同時適用：</strong><br>
+          <u>教評會</u>（《高級中等以下學校教師評審委員會設置辦法》第 3 條）：委員總額 <span id="notice-max-count">${numTr.totalN}</span> 人 ➡️ <strong>未兼行政教師至少需占 ${numTr.nonAdminMin} 人以上</strong>。<br>
+          <u>考核會</u>（《公立高級中等以下學校教師成績考核辦法》第 9 條）：委員總額 ${numPr.totalN} 人（選任 ${numPr.maxCount} 人＋當然委員 ${numPr.exCount} 人）➡️ <strong>未兼行政教師至少需占 ${numPr.nonAdminMin} 人以上，任一性別至少需占 ${numPr.genderMin} 人以上</strong>。
+        `;
+        return;
+      }
+      const num = computeCommitteeNumbers();
+      if (num.isPr) {
+        content.innerHTML = `
+          <strong>《公立高級中等以下學校教師成績考核辦法》第 9 條規範提示：</strong><br>
+          「委員每滿3人應有1人為未兼行政職務教師（計算排除教師會代表）；任一性別委員應占委員總數三分之一以上。」<br>
+          目前委員總額試算為 <span id="notice-max-count">${num.totalN}</span> 人（選任 ${num.maxCount} 人＋當然委員 ${num.exCount} 人）➡️ <strong>未兼行政教師至少需占 ${num.nonAdminMin} 人以上，任一性別至少需占 ${num.genderMin} 人以上</strong>。
+        `;
+      } else {
+        content.innerHTML = `
+          <strong>《高級中等以下學校教師評審委員會設置辦法》第 3 條規範提示：</strong><br>
+          「未兼行政教師人數，不得少於委員總額二分之一。」<br>
+          當前應選上限為 <span id="notice-max-count">${num.maxCount}</span> 人 ➡️ <strong>未兼行政教師至少需占 ${num.nonAdminMin} 人以上</strong>。
+        `;
+      }
+    }
+
+    // ===== 委員會類型切換與考核會專用邏輯 =====
+
+    function getCommitteeType() {
+      const el = document.getElementById('committee_type');
+      return el ? el.value : 'teacher_review';
+    }
+
+    // 共用試算：依委員會類型算出委員總額/當然委員人數/未兼行政門檻/性別門檻，
+    // 選票、簽收清冊、計票單、線上發布都呼叫這一個，不各自重複算一次公式。
+    // 2026-08-11：新增 forType 參數，讓同時辦理模式可以分別各自算一次教評會/考核會
+    // 的數字（不傳就沿用原本行為：用目前下拉選單選的類型，讀 max_selectable 欄位——
+    // 單選教評會/單選考核會兩種既有模式完全不受影響，只有 forType 明確指定、且目前
+    // 選單正是「同時辦理」時，考核會那一份才會改讀新增的 max_selectable_pr 欄位。
+    function computeCommitteeNumbers(forType) {
+      const currentType = getCommitteeType();
+      const type = forType || currentType;
+      const isPr = type === 'performance_review';
+      const isJointCtx = currentType === 'joint';
+      const maxSelEl = (isPr && isJointCtx)
+        ? document.getElementById('max_selectable_pr')
+        : document.getElementById('max_selectable');
+      const maxCount = parseInt(maxSelEl && maxSelEl.value) || 8;
+      if (isPr) {
+        const exMembers = parsedVotersList.filter(v => v.exOfficioRole);
+        const exCount = exMembers.length;
+        const totalN = maxCount + exCount;
+        const hasTeacherAssoc = exMembers.some(v => (v.exOfficioRole || '').indexOf('教師會代表') !== -1);
+        const nonAdminMin = Math.max(0, Math.floor((totalN - (hasTeacherAssoc ? 1 : 0)) / 3));
+        const genderMin = Math.ceil(totalN / 3);
+        return { isPr, totalN, exCount, maxCount, nonAdminMin, genderMin, exMembers };
+      }
+      const totalN = parseInt(document.getElementById('committee_total_n').value) || 11;
+      const hasTa = document.getElementById('has_teacher_assoc').checked;
+      const exCount = hasTa ? 3 : 2;
+      const nonAdminMin = Math.ceil(totalN / 2);
+      const genderMin = Math.ceil(totalN / 3);
+      return { isPr, totalN, exCount, maxCount, nonAdminMin, genderMin, exMembers: [] };
+    }
+
+    // 同時辦理模式下，考核會候選人資格要看 isCandidatePr（跟教評會的 isCandidate 各自獨立）；
+    // 單選教評會/單選考核會模式完全不受影響，isCandidatePr 從未被設定過時直接退回舊的
+    // isCandidate 欄位，行為跟改版前逐字相同。紙本選票/計票單要抓「目前這個類型」的
+    // 候選人清單時都呼叫這個函式，不直接寫 v.isCandidate。
+    function getCandidatesFor(type) {
+      if (type === 'performance_review') {
+        return parsedVotersList.filter(v => !v.exOfficioRole && (v.isCandidatePr !== undefined ? v.isCandidatePr !== false : v.isCandidate));
+      }
+      return parsedVotersList.filter(v => v.isCandidate);
+    }
+
+    // 切換「教評會 / 考核會 / 同時辦理」時，顯示對應的試算卡片、當然委員設定區塊、
+    // 名冊標記欄，並重新渲染已匯入的名冊表格。
+    function onCommitteeTypeChange() {
+      const type = getCommitteeType();
+      const isPr = type === 'performance_review';
+      const isJoint = type === 'joint';
+      const showTrPanels = !isPr; // 教評會或同時辦理都要顯示教評會試算/當然委員區塊
+      const showPrPanels = isPr || isJoint; // 考核會或同時辦理都要顯示考核會試算/當然委員說明
+
+      document.getElementById('panel-tr-calc').style.display = showTrPanels ? '' : 'none';
+      document.getElementById('panel-tr-exofficio').style.display = showTrPanels ? '' : 'none';
+      document.getElementById('panel-pr-calc').style.display = showPrPanels ? '' : 'none';
+      document.getElementById('panel-pr-exofficio-note').style.display = showPrPanels ? '' : 'none';
+      document.getElementById('voter-table-exofficio-header').style.display = showPrPanels ? '' : 'none';
+      document.getElementById('voter-table-pr-candidacy-header').style.display = isJoint ? '' : 'none';
+      document.getElementById('joint-mode-note').style.display = isJoint ? '' : 'none';
+      document.getElementById('max-selectable-pr-group').style.display = isJoint ? '' : 'none';
+
+      const maxLabel = document.getElementById('max-selectable-label');
+      if (maxLabel) {
+        maxLabel.innerHTML = isJoint
+          ? '教評會票選委員應選人數 (圈選上限人次) <small style="display: block; font-weight: 400; color: var(--text-muted);">同時辦理模式：這欄專屬教評會，考核會請填下方另一欄</small>'
+          : '票選委員應選人數 (圈選上限人次) <small style="display: block; font-weight: 400; color: var(--text-muted);">例：總額 11 人扣除當然委員 3 人，本次要投票選出 8 人</small>';
+      }
+
+      // 考核會沒有勾選中的當然委員時，先清掉可能殘留的舊標記（避免切換回教評會又切回來
+      // 導致標記邏輯混亂），並重新渲染名冊表格套用正確的欄位配置。
+      if (parsedVotersList.length > 0) {
+        renderVoterTable();
+      }
+      updateLegalNotice();
+    }
+
+    // 考核會委員總人數與法定比例動態試算（教師成績考核辦法第9條）
+    function calculatePrComposition() {
+      // 2026-09-01：第9條但書判斷（比照 committee.leotsai.me 的 calcB()）。
+      // 「參加考核教師人數」欄位空白＝不判斷但書，滑桿維持法定 9～17 人；
+      // 填了且 <20，滑桿下限才放寬到 5，讓管理者能選出合法的 5～8 人考核會。
+      const examCountRaw = document.getElementById('pr_exam_count').value;
+      const examCount = examCountRaw === '' ? null : parseInt(examCountRaw);
+      const hasExamCount = examCount !== null && !isNaN(examCount);
+      const small = hasExamCount && examCount < 20;
+
+      const slider = document.getElementById('pr_committee_total_n');
+      slider.min = small ? 5 : 9;
+      document.getElementById('pr_committee_total_range_hint').innerText = small
+        ? '(受考核未滿 20 人，第 9 條但書得降低至 5 ～ 17 人)'
+        : '(法定 9 ～ 17 人，第 9 條第 2 款)';
+      if (parseInt(slider.value) < parseInt(slider.min)) {
+        slider.value = slider.min;
+      }
+
+      const n = parseInt(slider.value) || 13;
+      document.getElementById('pr_committee_n_val').innerText = `${n} 人`;
+
+      // 實際「行使」但書（總額降到 9 人以下）時，當然委員法定上限為「至多 2 人，除教師會
+      // 代表外其餘由校長指定」，不是原本本文的 4 處室主管＋教師會代表 5 人固定組合。
+      const useProviso = isPrProvisoActive();
+      const hasTeacherAssoc = prExOfficioRoles.some(r => r.indexOf('教師會代表') !== -1);
+      const exOfficioCount = getPrEffectiveExOfficioCount();
+      document.getElementById('pr-calc-ex-officio').innerText = `${exOfficioCount} 人`;
+
+      const electedCount = Math.max(1, n - exOfficioCount);
+      document.getElementById('pr-calc-elected').innerText = `${electedCount} 人`;
+
+      // 未兼行政下限：委員每滿3人應有1人，且計算時排除教師會代表這一席
+      const nonAdminMin = Math.max(0, Math.floor((n - (hasTeacherAssoc ? 1 : 0)) / 3));
+      document.getElementById('pr-calc-non-admin').innerText = `${nonAdminMin} 人`;
+
+      // 任一性別下限 (≧ 1/3，以委員總額計算)
+      const genderMin = Math.ceil(n / 3);
+      document.getElementById('pr-calc-gender').innerText = `${genderMin} 人`;
+
+      // 但書狀態提示：說明目前是否已適用但書、當然委員職稱清單是否超過法定上限 2 人
+      const noticeBox = document.getElementById('pr-proviso-notice');
+      const noticeText = document.getElementById('pr-proviso-notice-text');
+      if (useProviso) {
+        noticeBox.style.display = 'flex';
+        let html = `<strong>已適用第 9 條但書：</strong>參加考核 ${examCount} 人未滿 20 人，委員總額降至 ${n} 人（最低 5 人），當然委員「至多」2 人，除教師會代表外其餘由校長指定。`;
+        if (prExOfficioRoles.length > 2) {
+          html += `<br><span style="color:var(--danger); font-weight:600;">目前當然委員職稱清單有 ${prExOfficioRoles.length} 個，超過但書上限 2 人，請到上方清單移除多餘職稱，只保留至多 2 個（有教師會代表時應優先保留）。</span>`;
+        }
+        noticeText.innerHTML = html;
+      } else if (small) {
+        noticeBox.style.display = 'flex';
+        noticeText.innerHTML = `參加考核 ${examCount} 人未滿 20 人，符合但書適用資格，惟目前委員總額仍設為 ${n} 人（未降到 9 人以下），故仍依第 9 條本文組成當然委員（四處室主管＋教師會代表）。如要精簡當然委員，請將上方委員總額滑桿調到 5～8 人。`;
+      } else {
+        noticeBox.style.display = 'none';
+        noticeText.innerHTML = '';
+      }
+    }
+
+    // 重新渲染當然委員職稱清單的 chip UI
+    function renderPrRoleChips() {
+      const container = document.getElementById('pr-role-chip-list');
+      if (!container) return;
+      container.innerHTML = prExOfficioRoles.map((role, idx) => `
+        <span style="display:inline-flex; align-items:center; gap:6px; background:#eff6ff; color:#1e40af; padding:6px 10px; border-radius:999px; font-size:0.85rem; font-weight:600;">
+          ${role}
+          <i class="ri-close-circle-fill" style="cursor:pointer; font-size:1rem;" onclick="removePrExOfficioRole(${idx})" title="移除"></i>
+        </span>
+      `).join('');
+      calculatePrComposition();
+      // 職稱清單一變，名冊表格裡的當然委員下拉選單選項也要跟著更新
+      if (parsedVotersList.length > 0 && getCommitteeType() === 'performance_review') {
+        renderVoterTable();
+      }
+    }
+
+    function addPrExOfficioRole() {
+      const input = document.getElementById('pr-role-new-input');
+      const role = (input.value || '').trim();
+      if (!role) return;
+      if (prExOfficioRoles.indexOf(role) !== -1) {
+        alert('這個職稱已經在清單裡了');
+        return;
+      }
+      prExOfficioRoles.push(role);
+      input.value = '';
+      renderPrRoleChips();
+    }
+
+    function removePrExOfficioRole(idx) {
+      const role = prExOfficioRoles[idx];
+      const isJoint = getCommitteeType() === 'joint';
+      // 有人已經被標記成這個職稱時，先解除標記，避免留下指向不存在職稱的殘留資料。
+      // 同時辦理模式下，考核會候選人資格要恢復 isCandidatePr（不動 isCandidate，
+      // 那一欄在同時辦理模式下代表教評會資格，兩邊互不影響）。
+      parsedVotersList.forEach(v => {
+        if (v.exOfficioRole === role) {
+          v.exOfficioRole = null;
+          if (isJoint) {
+            v.isCandidatePr = true;
+          } else {
+            v.isCandidate = true;
+          }
+        }
+      });
+      prExOfficioRoles.splice(idx, 1);
+      renderPrRoleChips();
+    }
+
+    // 一鍵帶入考核會選任人數至「圈選上限人次」
+    // 2026-08-11：同時辦理模式下考核會有自己獨立的圈選上限欄位 (max_selectable_pr)，
+    // 不能覆蓋掉教評會那一欄 (max_selectable)。
+    function applyPrElectedToMaxSelectable() {
+      const n = parseInt(document.getElementById('pr_committee_total_n').value) || 13;
+      const electedCount = Math.max(1, n - getPrEffectiveExOfficioCount());
+      const targetId = getCommitteeType() === 'joint' ? 'max_selectable_pr' : 'max_selectable';
+      document.getElementById(targetId).value = electedCount;
+      updateLegalNotice();
+    }
+
+    // 名冊表格裡「當然委員標記」下拉選單變動時呼叫：標記為當然委員的人自動從考核會
+    // 候選人（被選舉權）名單移除，取消標記則恢復候選人資格。
+    // 2026-08-11：同時辦理模式下，這個標記只影響「考核會」候選人資格 (isCandidatePr)，
+    // 完全不動 isCandidate（那一欄在同時辦理模式下代表教評會候選人資格，考核會的當然
+    // 委員身分不代表這個人也不能參選教評會，兩邊法規各自獨立判斷）。單選考核會模式
+    // 維持原本行為不變（繼續用 isCandidate）。
+    function setExOfficioRole(idx, role) {
+      const v = parsedVotersList[idx];
+      if (!v) return;
+      const isJoint = getCommitteeType() === 'joint';
+      if (role) {
+        v.exOfficioRole = role;
+        if (isJoint) {
+          v.isCandidatePr = false;
+        } else {
+          v.isCandidate = false;
+        }
+      } else {
+        v.exOfficioRole = null;
+        if (isJoint) {
+          v.isCandidatePr = true;
+        } else {
+          v.isCandidate = true;
+        }
+      }
+      renderVoterTable();
     }
 
     // 處理檔案選擇與讀取 (SheetJS CSV/Excel 解析)
@@ -1083,8 +1784,17 @@
         if (!name || !title) continue;
 
         // 【第一關過濾】：嚴格排除非編制內與非教師職務
-        const isNonTeacher = title.includes('校長') || title.includes('幹事') || title.includes('護理師') || 
-                             title.includes('工友') || title.includes('會計') || title.includes('人事') || title.includes('約僱');
+        // 2026-08-11：這幾個關鍵字（尤其是「人事」「會計」）原本不分青紅皂白排除，結果
+        // 連「教師兼人事主任」「教師兼會計主任」這種本身就是教師、只是兼任行政職務的人
+        // 也被一起濾掉了——這在考核會場景特別致命，因為人事主任正好是考核會法定當然
+        // 委員之一，名冊裡整個消失，管理者根本沒辦法標記他。修法：只有職稱「完全不含
+        // 教師」二字時才套用這幾個關鍵字排除（也就是真的是人事室職員、總務會計人員等
+        // 非教師編制人員），只要職稱本身含「教師」，一律不受這幾個關鍵字排除影響。
+        const containsTeacherWord = title.includes('教師');
+        const isNonTeacher = !containsTeacherWord && (
+          title.includes('校長') || title.includes('幹事') || title.includes('護理師') ||
+          title.includes('工友') || title.includes('會計') || title.includes('人事') || title.includes('約僱')
+        );
         const isProxyTeacher = title.includes('代理') || title.includes('代課');
 
         if (isNonTeacher || isProxyTeacher) {
@@ -1096,6 +1806,17 @@
           // 提取身分證後 4 碼 (取英數字最後 4 位)
           const cleanId = idStr.replace(/[^A-Za-z0-9]/g, '');
           const idLast4 = cleanId.length >= 4 ? cleanId.slice(-4) : '0000';
+
+          // 2026-08-10：從身分證字號判別性別，不用額外多收集「性別」欄位。
+          // 中華民國身分證格式為「1碼英文字母 + 9碼數字」，字母後第一碼固定
+          // 1=男、2=女（這是既有的公開編碼規則，不是猜測）。抓不到就設 null，
+          // 後續統計時會把「性別不明」的人排除在男/女計數之外，不會硬猜。
+          const genderMatch = cleanId.match(/^[A-Za-z](\d)/);
+          let gender = null;
+          if (genderMatch) {
+            if (genderMatch[1] === '1') gender = 'M';
+            else if (genderMatch[1] === '2') gender = 'F';
+          }
 
           // 提取生日 MMDD (尋找 4 位數月日，如 0690326 中的 0326)
           const birthdayMatch = birthdayStr.match(/\d+/g);
@@ -1122,10 +1843,20 @@
             birthdayMMDD: birthdayMMDD,
             verifyCode: verifyCode,
             isAdmin: isAdminTeacher,
+            gender: gender,
             categoryTag: isAdminTeacher ? (isDirector ? '兼行政 (主任)' : '兼行政 (組長)') : '未兼行政教師',
             isCandidate: true // 依法編制內專任教師（含兼主任、兼組長、兼導師）預設全數具備被選舉權
           });
         }
+      }
+
+      // 2026-09-01：「參加考核教師人數」欄位若管理者還沒填，優先用剛匯入的名冊人數
+      // （全體合格專任教師＝受考核範圍）自動帶入，比要求管理者自己再手動輸入一次更準確、
+      // 也更貼近「名冊匯入流程裡已有的資料源」；欄位已有值時尊重管理者填的數字，不覆蓋。
+      const examCountEl = document.getElementById('pr_exam_count');
+      if (examCountEl && examCountEl.value === '') {
+        examCountEl.value = parsedVotersList.length;
+        calculatePrComposition();
       }
 
       // 渲染名單預覽表格
@@ -1136,9 +1867,18 @@
     function renderVoterTable() {
       const tbody = document.getElementById('voter-table-body');
       tbody.innerHTML = '';
+      const type = getCommitteeType();
+      const isPr = type === 'performance_review';
+      const isJoint = type === 'joint';
+      const colCount = isJoint ? 9 : (isPr ? 8 : 7);
+
+      const candidacyHeader = document.getElementById('voter-table-candidacy-header');
+      if (candidacyHeader) {
+        candidacyHeader.innerText = isJoint ? '教評會候選人' : '被選舉權 (登載於選票)';
+      }
 
       if (parsedVotersList.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--danger); padding:1.5rem;">未找到合格之編制內專任教師名單</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="${colCount}" style="text-align:center; color:var(--danger); padding:1.5rem;">未找到合格之編制內專任教師名單</td></tr>`;
         document.getElementById('parsed-count-badge').innerText = '0 人';
         return;
       }
@@ -1148,6 +1888,45 @@
 
       parsedVotersList.forEach((v, idx) => {
         const tr = document.createElement('tr');
+        // 考核會：當然委員標記欄，下拉選單選項來自 prExOfficioRoles；選定角色後
+        // 該員自動排除考核會被選舉權（見 setExOfficioRole）。教評會（單選模式）不顯示
+        // 這一欄；同時辦理模式也顯示，因為考核會的當然委員標記跟教評會候選資格是
+        // 各自獨立的兩件事。
+        const showExOfficioCol = isPr || isJoint;
+        const exOfficioCell = showExOfficioCol ? `
+          <td>
+            <select class="form-control" style="font-size:0.85rem; padding:4px 6px;" onchange="setExOfficioRole(${idx}, this.value)">
+              <option value="">（一般候選人）</option>
+              ${prExOfficioRoles.map(role => `<option value="${role}" ${v.exOfficioRole === role ? 'selected' : ''}>${role}</option>`).join('')}
+            </select>
+          </td>` : '';
+
+        // 「被選舉權」欄：單選模式維持原本邏輯不變（教評會用勾選框；考核會用
+        // exOfficioRole 自動判斷）。同時辦理模式下這一欄固定代表「教評會候選人資格」
+        // (isCandidate)，跟考核會的當然委員標記完全脫鉤——department head 標成考核會
+        // 當然委員，不代表他/她也不能參選教評會。
+        const candidacyCell = isJoint
+          ? `<td><input type="checkbox" id="cand-chk-${idx}" ${v.isCandidate ? 'checked' : ''} onchange="toggleCandidate(${idx}, this.checked)">
+               <label for="cand-chk-${idx}">${v.isCandidate ? '列入教評會圈選名單' : '<span style="color:var(--danger);">剔除 (不列入教評會)</span>'}</label></td>`
+          : `<td>
+              ${v.exOfficioRole
+                ? `<span style="color:var(--text-muted);">當然委員（${v.exOfficioRole}），無被選舉權</span>`
+                : `<input type="checkbox" id="cand-chk-${idx}" ${v.isCandidate ? 'checked' : ''} onchange="toggleCandidate(${idx}, this.checked)">
+                   <label for="cand-chk-${idx}">${v.isCandidate ? '列入圈選名單' : '<span style="color:var(--danger);">剔除 (不被圈選)</span>'}</label>`
+              }
+            </td>`;
+
+        // 同時辦理模式專用：考核會候選人資格欄，跟上面的教評會欄各自獨立勾選/顯示。
+        const prCandidacyCell = isJoint
+          ? `<td>
+              ${v.exOfficioRole
+                ? `<span style="color:var(--text-muted);">當然委員，無被選舉權</span>`
+                : `<input type="checkbox" id="cand-chk-pr-${idx}" ${v.isCandidatePr !== false ? 'checked' : ''} onchange="toggleCandidatePr(${idx}, this.checked)">
+                   <label for="cand-chk-pr-${idx}">${v.isCandidatePr !== false ? '列入考核會圈選名單' : '<span style="color:var(--danger);">剔除 (不列入考核會)</span>'}</label>`
+              }
+            </td>`
+          : '';
+
         tr.innerHTML = `
           <td>${idx + 1}</td>
           <td><strong>${v.name}</strong></td>
@@ -1155,10 +1934,9 @@
           <td><span class="badge ${v.isAdmin ? 'badge-warning' : 'badge-primary'}">${v.categoryTag}</span></td>
           <td><code style="background:#e2e8f0; padding:2px 6px; border-radius:4px;">${v.verifyCode}</code></td>
           <td><span class="badge badge-success">有 (投票權)</span></td>
-          <td>
-            <input type="checkbox" id="cand-chk-${idx}" ${v.isCandidate ? 'checked' : ''} onchange="toggleCandidate(${idx}, this.checked)">
-            <label for="cand-chk-${idx}">${v.isCandidate ? '列入圈選名單' : '<span style="color:var(--danger);">剔除 (不被圈選)</span>'}</label>
-          </td>
+          ${candidacyCell}
+          ${exOfficioCell}
+          ${prCandidacyCell}
         `;
         tbody.appendChild(tr);
       });
@@ -1170,6 +1948,13 @@
       }
     }
 
+    // 同時辦理模式專用：考核會候選人資格切換（跟 toggleCandidate 的教評會資格各自獨立）。
+    function toggleCandidatePr(idx, checked) {
+      if (parsedVotersList[idx]) {
+        parsedVotersList[idx].isCandidatePr = checked;
+      }
+    }
+
     // 【按鈕 1】產製 A4 紙本選票單 (完全對齊官方 5 點選票說明格式)
     function generatePaperBallot() {
       if (parsedVotersList.length === 0) {
@@ -1177,13 +1962,21 @@
         return;
       }
 
+      // 2026-08-11：同時辦理模式沒有「合併版面」的紙本選票（維持兩份各自獨立列印，
+      // 風險最低），這裡先產「教評會」版本；考核會版本請把上方委員會類型切換成
+      // 「教師成績考核委員會（考核會）」後再次點擊這個按鈕即可（名冊標記資料共用，
+      // 不用重新匯入）。
+      if (getCommitteeType() === 'joint') {
+        alert('同時辦理模式：本次將產製「教評會」版本的紙本選票。\n若也需要「考核會」版本，請先在上方「委員會類型」切換為「教師成績考核委員會（考核會）」，再次點擊本按鈕即可（名冊標記資料共用，不用重新匯入）。');
+      }
+
       const schoolName = document.getElementById('school_name').value || "國民小學";
-      const maxCount = parseInt(document.getElementById('max_selectable').value) || 8;
-      const totalN = parseInt(document.getElementById('committee_total_n').value) || 11;
-      const hasTa = document.getElementById('has_teacher_assoc').checked;
-      const exCount = hasTa ? 3 : 2;
-      const nonAdminMin = Math.ceil(totalN / 2);
-      const genderMin = Math.ceil(totalN / 3);
+      const num = computeCommitteeNumbers();
+      const maxCount = num.maxCount;
+      const totalN = num.totalN;
+      const exCount = num.exCount;
+      const nonAdminMin = num.nonAdminMin;
+      const genderMin = num.genderMin;
 
       const startTimeVal = document.getElementById('start_time').value;
       const endTimeVal = document.getElementById('end_time').value;
@@ -1196,27 +1989,43 @@
       };
 
       const yearRoc = new Date().getFullYear() - 1911;
-      document.getElementById('print-school-title').innerText = `${schoolName} ${yearRoc}學年度教師評審委員會選舉選票單`;
-      document.getElementById('print-total-n').innerText = totalN;
-      document.getElementById('print-ex-n').innerText = exCount;
-      document.getElementById('print-max-selectable').innerText = maxCount;
-      document.getElementById('print-max-selectable-2').innerText = maxCount;
-      document.getElementById('print-over-selectable').innerText = maxCount + 1;
-      document.getElementById('print-non-admin-n').innerText = nonAdminMin;
-      document.getElementById('print-gender-n').innerText = genderMin;
 
-      document.getElementById('print-start-time').innerText = formatDt(startTimeVal);
-      document.getElementById('print-end-time').innerText = formatDt(endTimeVal);
+      if (num.isPr) {
+        document.getElementById('print-school-title').innerText = `${schoolName} ${yearRoc}學年度教師成績考核委員會選舉選票單`;
+        const exListText = num.exMembers.map(v => `${v.exOfficioRole}${v.name}`).join('、');
+        document.getElementById('ballot-legal-block').innerHTML = `
+          <strong>壹、說明：</strong><br>
+          一、本次選舉請以無記名方式票選您心目中理想人員擔任委員，期許結合多數教師的智慧，以公正、公平、公開原則辦理本校教師考核獎懲等業務。<br>
+          二、依「公立高級中等以下學校教師成績考核辦法」第九條規定略以，教師成績考核委員會由委員九人至十七人組成，除掌理教務、學生事務、輔導、人事業務之單位主管及教師會代表一人為當然委員外，其餘由本校教師票選產生，並由委員互推一人為主席，任期一年。委員每滿三人應有一人為未兼行政職務教師（計算排除教師會代表）；任一性別委員應占委員總數三分之一以上。<br>
+          三、本校教師成績考核委員會組成人數，提經校務會議決議設置委員人數 <span id="print-total-n">${totalN}</span> 人，${exListText ? `依規定由${exListText}等 ${exCount} 人為當然委員` : `當然委員 ${exCount} 人`}；另應票選委員 <strong id="print-max-selectable">${maxCount}</strong> 人，其中未兼行政職務教師應至少 <span id="print-non-admin-n">${nonAdminMin}</span> 人，所有委員中任一性別委員應至少 <span id="print-gender-n">${genderMin}</span> 人（票數相同者以抽籤定之，惟仍須受限於兼行政及性別比例之規定）；另依票數高低列候補委員 5 人（如有同票等情事酌予增列）。<br>
+          四、請各位教師以「○」符號在圈票處劃記，每票至多圈選 <strong id="print-max-selectable-2">${maxCount}</strong> 人，圈選 <span id="print-over-selectable">${maxCount + 1}</span> 人以上（含）者，則視為廢票；選票如有塗改或以其他符號註記，亦視為廢票。<br>
+          五、本次投票時間自 <span id="print-start-time">${formatDt(startTimeVal)}</span> 起至 <span id="print-end-time">${formatDt(endTimeVal)}</span> 止，請於時限內將選票投入大辦公室之選票箱中，逾期將以廢票計之。<br>
+          <span style="font-size: 0.85rem; color: #333;">※ 當然委員：${exListText || '（尚未於名冊標記）'}。</span>
+        `;
+      } else {
+        // 教評會：跟改版前逐字相同的說明文字，用 innerHTML 重新寫回去是因為考核會那個分支
+        // 會覆蓋掉這個 block，兩種類型互相切換產製時才不會殘留另一種的說明文字。
+        document.getElementById('print-school-title').innerText = `${schoolName} ${yearRoc}學年度教師評審委員會選舉選票單`;
+        document.getElementById('ballot-legal-block').innerHTML = `
+          <strong>壹、說明：</strong><br>
+          一、本次選舉請以無記名方式票選您心目中理想人員擔任委員，期許結合多數教師的智慧，以公正、公平、公開原則共同為本校妥善處理教師的聘任及重要權益等事項。<br>
+          二、依據高級中等以下學校教師評審委員會設置辦法第3條規定略以，教師評審委員會包括校長、家長會代表、教師會代表（由教師會推選代表）各一人為當然委員，餘由全體教師選 (推) 舉之。又本會委員中未兼行政之教師不得少於委員總額二分之一，任一性別委員人數不得少於委員總額三分之一。<br>
+          三、復依本校教師評審委員會設置要點規定略以，本會置委員 <span id="print-total-n">${totalN}</span> 人，除當然委員 <span id="print-ex-n">${exCount}</span> 人外，應票選委員 <strong id="print-max-selectable">${maxCount}</strong> 人，又委員中未兼行政職務之教師應至少為 <span id="print-non-admin-n">${nonAdminMin}</span> 人，任一性別委員人數應至少為 <span id="print-gender-n">${genderMin}</span> 人（票數相同者以抽籤定之，仍須受限於兼行政及性別比例之規定）；另依票數高低列候補委員 5 人（如有同票等情事酌予增列）。<br>
+          四、請各位教師以「○」符號在圈票處劃記，每張選票至多圈選 <strong id="print-max-selectable-2">${maxCount}</strong> 人，圈選 <span id="print-over-selectable">${maxCount + 1}</span> 人以上（含）者，則視為廢票；選票如有塗改或以其他符號註記，亦視為廢票。<br>
+          五、本次投票時間自 <span id="print-start-time">${formatDt(startTimeVal)}</span> 起至 <span id="print-end-time">${formatDt(endTimeVal)}</span> 止，請於時限內將選票投入選票箱中，逾期將以廢票計之。<br>
+          <span style="font-size: 0.85rem; color: #333;">※ 當然委員：校長、家長會代表、教師會代表。</span>
+        `;
+      }
       document.getElementById('print-date').innerText = new Date().toLocaleDateString('zh-TW');
 
-      const candidates = parsedVotersList.filter(v => v.isCandidate);
+      const candidates = getCandidatesFor(num.isPr ? 'performance_review' : 'teacher_review');
       const tbody = document.getElementById('print-candidate-tbody');
       tbody.innerHTML = '';
 
       candidates.forEach((c, i) => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td style="height: 45px;">〔  〕</td>
+          <td style="height: 26px;">〔  〕</td>
           <td>${i + 1}</td>
           <td><strong>${c.name}</strong></td>
           <td>${c.categoryTag}</td>
@@ -1240,8 +2049,15 @@
 
       const schoolName = document.getElementById('school_name').value || "國民小學";
       const yearRoc = new Date().getFullYear() - 1911;
+      const type = getCommitteeType();
+      const isPr = type === 'performance_review';
 
-      document.getElementById('print-roster-school-title').innerText = `${schoolName} ${yearRoc}學年度教師評審委員會`;
+      // 簽收清冊跟候選人資格無關（同一批人來簽到，不管辦一場還是同時辦兩場），
+      // 同時辦理模式只需要標題文字反映「兩個委員會共用同一份簽到」，其餘不變。
+      document.getElementById('print-roster-school-title').innerText = isPr
+        ? `${schoolName} ${yearRoc}學年度教師成績考核委員會`
+        : (type === 'joint' ? `${schoolName} ${yearRoc}學年度教評會／教師成績考核委員會（同時辦理）` : `${schoolName} ${yearRoc}學年度教師評審委員會`);
+      document.getElementById('print-roster-subtitle').innerText = '選舉選票 簽收清冊';
       document.getElementById('print-roster-date').innerText = new Date().toLocaleDateString('zh-TW');
 
       const tbody = document.getElementById('print-roster-tbody');
@@ -1250,10 +2066,10 @@
       parsedVotersList.forEach((v, i) => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td style="height: 42px; text-align: center;">${i + 1}</td>
+          <td style="height: 27px; text-align: center;">${i + 1}</td>
           <td style="text-align: center;">${v.title}</td>
           <td style="text-align: center;"><strong>${v.name}</strong></td>
-          <td style="font-size: 0.95rem; color: #333; padding-left: 1rem;">${yearRoc}年  月　　日</td>
+          <td style="font-size: 0.85rem; color: #333; padding-left: 1rem;">${yearRoc}年  月　　日</td>
         `;
         tbody.appendChild(tr);
       });
@@ -1268,31 +2084,42 @@
         return;
       }
 
+      // 同上一個按鈕：同時辦理模式沒有合併版面的計票單，先產「教評會」版本，
+      // 考核會版本請切換委員會類型後再次點擊。
+      if (getCommitteeType() === 'joint') {
+        alert('同時辦理模式：本次將產製「教評會」版本的計票單。\n若也需要「考核會」版本，請先在上方「委員會類型」切換為「教師成績考核委員會（考核會）」，再次點擊本按鈕即可。');
+      }
+
       const schoolName = document.getElementById('school_name').value || "國民小學";
-      const maxCount = parseInt(document.getElementById('max_selectable').value) || 8;
-      const totalN = parseInt(document.getElementById('committee_total_n').value) || 11;
-      const nonAdminMin = Math.ceil(totalN / 2);
-      const genderMin = Math.ceil(totalN / 3);
+      const num = computeCommitteeNumbers();
+      const maxCount = num.maxCount;
+      const nonAdminMin = num.nonAdminMin;
+      const genderMin = num.genderMin;
       const yearRoc = new Date().getFullYear() - 1911;
 
-      document.getElementById('print-tally-school-title').innerText = `${schoolName} ${yearRoc}學年度教師評審委員會選舉計票單`;
+      document.getElementById('print-tally-school-title').innerText = num.isPr
+        ? `${schoolName} ${yearRoc}學年度教師成績考核委員會選舉計票單`
+        : `${schoolName} ${yearRoc}學年度教師評審委員會選舉計票單`;
       document.getElementById('print-tally-elected-count').innerText = maxCount;
       document.getElementById('print-tally-non-admin-min').innerText = nonAdminMin;
       document.getElementById('print-tally-gender-min').innerText = genderMin;
+      document.getElementById('print-tally-exofficio-desc').innerText = num.isPr
+        ? (num.exMembers.map(v => `${v.exOfficioRole}${v.name}`).join('、') || '（尚未於名冊標記）')
+        : '校長、家長會代表、教師會代表';
       document.getElementById('print-tally-date').innerText = new Date().toLocaleDateString('zh-TW');
 
-      const candidates = parsedVotersList.filter(v => v.isCandidate);
+      const candidates = getCandidatesFor(num.isPr ? 'performance_review' : 'teacher_review');
       const tbody = document.getElementById('print-tally-tbody');
       tbody.innerHTML = '';
 
       candidates.forEach((c, i) => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td style="height: 38px; text-align: center;">${i + 1}</td>
+          <td style="height: 22px; text-align: center;">${i + 1}</td>
           <td style="text-align: center;"><strong>${c.name}</strong></td>
           <td style="text-align: center;">${c.categoryTag}</td>
           <td style="text-align: center;">　　 票</td>
-          <td style="text-align: center; font-size: 0.85rem; color: #555;">[  ]正取  [  ]備取</td>
+          <td style="text-align: center; font-size: 0.8rem; color: #555;">[  ]正取  [  ]備取</td>
         `;
         tbody.appendChild(tr);
       });
@@ -1305,14 +2132,44 @@
     }
 
     // 【按鈕 2】發布線上無記名投票 (打 GAS API)
-    function deployOnlineVote() {
+    async function deployOnlineVote() {
       if (parsedVotersList.length === 0) {
         alert("請先匯入人員名冊檔案");
         return;
       }
 
+      const type = getCommitteeType();
+      const isPr = type === 'performance_review';
+      const isJoint = type === 'joint';
+
+      if (isJoint) {
+        const maxSelPrEl = document.getElementById('max_selectable_pr');
+        if (!maxSelPrEl || !maxSelPrEl.value || parseInt(maxSelPrEl.value) < 1) {
+          alert("同時辦理模式：請填寫「考核會票選委員應選人數」欄位（至少 1 人）");
+          return;
+        }
+      }
+
+      // 當然委員：教評會（校長/家長會代表/教師會代表）姓名/性別不是從名冊或投票產生，
+      // 由管理者手動填寫（選填）；考核會（各處室主管+教師會代表）本身就是名冊裡的教師，
+      // 直接從「當然委員標記」欄位帶出姓名/性別，不用管理者再手動輸入一次。這兩組
+      // 同時辦理模式都要用到（各自獨立、不互相取代），單選模式只需要其中一組。
+      const prExOfficioMembers = parsedVotersList.filter(v => v.exOfficioRole).map(v => ({
+        role: v.exOfficioRole,
+        name: v.name,
+        gender: v.gender
+      }));
+      const trExOfficioMembers = [
+        { role: "校長", name: document.getElementById('ex_principal_name').value.trim(), gender: document.getElementById('ex_principal_gender').value },
+        { role: "家長會代表", name: document.getElementById('ex_parent_name').value.trim(), gender: document.getElementById('ex_parent_gender').value },
+        { role: "教師會代表", name: document.getElementById('ex_teacherassoc_name').value.trim(), gender: document.getElementById('ex_teacherassoc_gender').value }
+      ];
+      const exOfficioMembers = isPr ? prExOfficioMembers : trExOfficioMembers;
+
       const payload = {
         action: "setup",
+        setup_secret: SETUP_API_SECRET,
+        committee_type: type,
         school_name: document.getElementById('school_name').value,
         admin_email: document.getElementById('admin_email').value,
         max_selectable: parseInt(document.getElementById('max_selectable').value),
@@ -1322,22 +2179,58 @@
           name: v.name,
           verify_code: v.verifyCode
         })),
-        candidate_list: parsedVotersList.filter(v => v.isCandidate).map(v => v.name)
+        // 2026-08-10：候選人清單原本只送姓名，開票結案時完全無法算「未兼行政教師人數」
+        // 跟「性別比例」──改成連同性別（身分證判別）、是否兼行政一起送給後端存起來，
+        // 結案信才有資料可以真的算，不是憑空宣稱符合規定。
+        // 2026-08-11：這一份固定是「教評會」候選人清單（單選教評會時就是唯一的一份，
+        // 同時辦理時是 Part A），一律看 isCandidate。
+        candidate_list: parsedVotersList.filter(v => v.isCandidate).map(v => ({
+          name: v.name,
+          gender: v.gender,
+          isAdmin: v.isAdmin
+        })),
+        ex_officio_members: exOfficioMembers
       };
 
-      // 模擬/呼叫 GAS API
-      const fakeVoteId = "v_" + Date.now().toString(36);
-      const voteUrl = window.location.origin + window.location.pathname + "?vote_id=" + fakeVoteId;
+      if (isJoint) {
+        // 2026-08-11：同時辦理模式才會有這三個欄位，後端 handleSetup 會把它們存進
+        // Activity_Config 的 max_selectable_pr / candidates_json_pr / ex_officio_json_pr。
+        payload.max_selectable_pr = parseInt(document.getElementById('max_selectable_pr').value);
+        payload.candidate_list_pr = parsedVotersList
+          .filter(v => !v.exOfficioRole && v.isCandidatePr !== false)
+          .map(v => ({ name: v.name, gender: v.gender, isAdmin: v.isAdmin }));
+        payload.ex_officio_members_pr = prExOfficioMembers;
+      }
 
+      // 2026-08-11：這裡呼叫 GAS 建立活動，網路慢或 GAS 冷啟動時可能要等好幾秒，
+      // 使用者回報過按下去畫面沒有任何反饋、不知道系統有沒有反應。按下當下就先鎖住
+      // 按鈕、換成轉圈圖示＋「發布中…」文字，成功或失敗都要在 finally 恢復，不然
+      // 按鈕會卡在 loading 狀態出不來。
+      const deployBtn = document.getElementById('deploy-vote-btn');
+      let realVoteId;
+      setButtonLoading(deployBtn, true, '發布中…');
+      try {
+        const result = await callGasApi(payload);
+        realVoteId = result.vote_id;
+      } catch (err) {
+        alert("建立線上投票活動失敗：" + err.message);
+        return;
+      } finally {
+        setButtonLoading(deployBtn, false);
+      }
+
+      const voteUrl = window.location.origin + window.location.pathname + "?vote_id=" + realVoteId;
+
+      const committeeAnnouncementLabel = isJoint ? '教評會／教師成績考核委員會（同時辦理）' : (isPr ? '教師成績考核委員會' : '教評會委員');
       document.getElementById('generated-vote-url').value = voteUrl;
       document.getElementById('generated-announcement-text').value = 
-`📢【${payload.school_name} 113學年度教評會委員線上投票通知】
+`📢【${payload.school_name} 113學年度${committeeAnnouncementLabel}線上投票通知】
 
 🗳️ 投票網址：${voteUrl}
 📅 投票時間：${payload.start_time.replace('T', ' ')} ~ ${payload.end_time.replace('T', ' ')}
-🔢 圈選上限：上限 ${payload.max_selectable} 人
+🔢 圈選上限：${isJoint ? `教評會 ${payload.max_selectable} 人、考核會 ${payload.max_selectable_pr} 人` : `上限 ${payload.max_selectable} 人`}
 🔑 驗證方式：請輸入您的【身分證後4碼 + 生日4碼(MMDD)】（共8位數字）
-🔒 隱私聲明：本投票採用雙工作表完全切斷身分與選票之連結，請同仁安心投票。`;
+🔒 隱私聲明：本投票採用雙工作表完全切斷身分與選票之連結，請同仁安心投票。${isJoint ? '\n📝 特別說明：本次為「同時辦理」活動，投票時會一次看到教評會與考核會兩份候選人名單，只需驗證一次、送出一次即可完成兩個委員會的圈選。' : ''}`;
 
       document.getElementById('online-success-modal').style.display = 'flex';
     }
@@ -1347,6 +2240,84 @@
       navigator.clipboard.writeText(text).then(() => {
         alert("已成功複製宣導訊息與投票網址至剪貼簿！");
       });
+    }
+
+    // 2026-08-11：一鍵範例名冊——比照 overtime-pay-tool 的一鍵試用做法，直接組出跟 WebHR
+    // 職員名籍冊格式一致的二維陣列，餵給既有的 parseSchoolHrRows()，跟真的上傳/貼上檔案
+    // 走同一套解析與分類邏輯（title 過濾、身分證性別判別、8碼通行碼組合），不是另外寫
+    // 一套假邏輯。17 人的組成：4 位處室主管（教務/學務/輔導/人事）+ 1 位一般教師可示範
+    // 標記為教師會代表，其餘 12 位一般教師/組長，人數足夠讓教評會、考核會、同時辦理
+    // 三種模式的委員總額/未兼行政/性別比例試算都乾淨無警告。
+    function loadSampleRoster() {
+      const rows = [
+        ['職稱', '姓名', '身分證號', '出生日期'],
+        ['教師兼教務主任', '王建平', 'A100001001', '0650312'],
+        ['教師兼學務主任', '李美玲', 'B200001002', '0660425'],
+        ['教師兼輔導主任', '陳志明', 'C100001003', '0640118'],
+        ['教師兼人事主任', '林淑芬', 'D200001004', '0670907'],
+        ['教師', '張文彬', 'E100001005', '0690623'],
+        ['教師兼註冊組長', '黃冠廷', 'F100001006', '0700214'],
+        ['教師兼訓育組長', '吳雅婷', 'G200001007', '0710809'],
+        ['教師', '蔡宗翰', 'H100001008', '0720326'],
+        ['教師', '楊淑惠', 'A200001009', '0730511'],
+        ['教師', '劉柏宏', 'B100001010', '0741002'],
+        ['教師', '鄭雅芳', 'C200001011', '0651215'],
+        ['教師', '許志豪', 'D100001012', '0680430'],
+        ['教師', '謝欣怡', 'E200001013', '0690718'],
+        ['教師', '賴俊傑', 'F100001014', '0700105'],
+        ['教師', '洪佩珊', 'G200001015', '0710922'],
+        ['教師', '潘威廷', 'H100001016', '0720617'],
+        ['教師兼導師', '邱靜宜', 'A200001017', '0730203']
+      ];
+
+      parseSchoolHrRows(rows);
+
+      if (parsedVotersList.length === 0) {
+        alert('範例名冊載入失敗，請改用下方「下載簡易版 CSV 範本」手動測試。');
+        return;
+      }
+
+      // 順便示範教評會的當然委員手動輸入（校長/家長會代表/教師會代表不在名冊裡，
+      // 這 3 人本來就要管理者自己填，範例直接帶入虛構姓名方便試用）。
+      const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+      setVal('ex_principal_name', '吳校長');
+      setVal('ex_principal_gender', 'M');
+      setVal('ex_parent_name', '陳家長');
+      setVal('ex_parent_gender', 'F');
+      setVal('ex_teacherassoc_name', '張文彬');
+      setVal('ex_teacherassoc_gender', 'M');
+
+      // 依目前選擇的委員會類型示範考核會當然委員標記怎麼用（只有考核會/同時辦理模式
+      // 這個標記才有意義且欄位才會顯示；純教評會模式跳過，避免誤動 isCandidate）。
+      const type = getCommitteeType();
+      const willMarkPr = type === 'performance_review' || type === 'joint';
+      if (willMarkPr) {
+        const demoMarks = [
+          { name: '王建平', role: '教務主任' },
+          { name: '李美玲', role: '學務主任' },
+          { name: '陳志明', role: '輔導主任' },
+          { name: '林淑芬', role: '人事主任' },
+          { name: '張文彬', role: '教師會代表' }
+        ];
+        demoMarks.forEach(m => {
+          if (!prExOfficioRoles.includes(m.role)) return; // 職稱清單被改過就跳過，不硬標
+          const idx = parsedVotersList.findIndex(v => v.name === m.name);
+          if (idx !== -1) setExOfficioRole(idx, m.role);
+        });
+      }
+
+      document.getElementById('school_name').value = '範例國民小學（示範資料）';
+      if (!document.getElementById('admin_email').value.trim()) {
+        document.getElementById('admin_email').value = 'demo@example.com';
+      }
+
+      updateLegalNotice();
+
+      alert(`已載入範例名冊：${parsedVotersList.length} 位教師${willMarkPr ? '，並示範標記 5 位考核會當然委員（教務/學務/輔導/人事主任＋教師會代表）' : ''}。可以直接往下捲動查看名冊，或切換上方「委員會類型」再點一次本按鈕看不同的標記示範。`);
+
+      // 手機上表格在畫面下方，載入後自動捲動過去，讓使用者馬上看到結果
+      const table = document.querySelector('.table-wrapper');
+      if (table) table.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
     // 下載簡易版 CSV 範本 (使用 100% 虛構範例資料)
@@ -1391,20 +2362,53 @@
     // ----------------------------------------------------
     // 投票者端邏輯 (Voter View)
     // ----------------------------------------------------
-    function loadVoterActivityInfo(voteId) {
-      // 載入預設選務資料 (若有連接 GAS 則透過 fetch 取得，使用虛構測試資料)
-      currentVoteConfig = {
-        voteId: voteId,
-        schoolName: "高雄市OO區OO國民小學",
-        maxSelectable: 2,
-        candidates: ["陳大明 (導師)", "林小玲 (導師)", "黃志強 (導師)", "張美美 (導師)", "李國華 (導師)", "趙子雲 (導師)", "錢順利 (訓育組長)", "孫美麗 (事務組長)", "周平安 (輔導組長)"]
-      };
+    async function loadVoterActivityInfo(voteId) {
+      // 向 GAS 取得真實選務資料（活動不存在或後端未連接時，於畫面上顯示錯誤而非假資料）
+      try {
+        const result = await callGasApi({ action: "get_candidates", vote_id: voteId });
+        currentVoteConfig = {
+          voteId: result.vote_id,
+          schoolName: result.school_name,
+          maxSelectable: result.max_selectable,
+          candidates: result.candidates,
+          // 2026-08-11：同時辦理模式才會有這兩個欄位，get_candidates 只在
+          // committee_type === "joint" 時才回傳（見 handleGetCandidates）。
+          committeeType: result.committee_type || 'teacher_review',
+          candidatesPr: result.candidates_pr || [],
+          maxSelectablePr: result.max_selectable_pr || 0
+        };
+      } catch (err) {
+        document.getElementById('voter-school-title').innerText = "活動載入失敗";
+        alert("無法載入投票活動資料：" + err.message);
+        return;
+      }
 
       document.getElementById('voter-school-title').innerText = currentVoteConfig.schoolName;
       document.getElementById('voter-max-selectable').innerText = currentVoteConfig.maxSelectable;
+
+      const isJoint = currentVoteConfig.committeeType === 'joint';
+      const isPr = currentVoteConfig.committeeType === 'performance_review';
+
+      const ballotTitleEl = document.getElementById('voter-ballot-title');
+      if (ballotTitleEl) {
+        ballotTitleEl.innerText = isJoint
+          ? '請圈選教評會與考核會委員候選人'
+          : (isPr ? '請圈選考核會委員候選人' : '請圈選教評會委員候選人');
+      }
+
+      if (isJoint) {
+        // 同時辦理：頂部 sticky 欄的單一計數不夠用（兩個委員會各自有自己的上限），
+        // 改成隱藏 sticky 欄的計數、在各自的候選人區塊上方顯示各自的進度。
+        document.getElementById('voter-sticky-progress').style.display = 'none';
+        document.getElementById('voter-section-tr-label').style.display = '';
+        document.getElementById('voter-tr-progress').style.display = '';
+        document.getElementById('voter-max-selectable-inline').innerText = currentVoteConfig.maxSelectable;
+        document.getElementById('voter-section-pr').style.display = '';
+        document.getElementById('voter-max-selectable-pr').innerText = currentVoteConfig.maxSelectablePr;
+      }
     }
 
-    function verifyVoterCode() {
+    async function verifyVoterCode() {
       const code = document.getElementById('voter_verify_code').value.trim();
       if (code.length !== 8) {
         document.getElementById('verify-error-msg').innerText = "驗證碼長度需為 8 位數字";
@@ -1412,22 +2416,57 @@
         return;
       }
 
-      // 驗證成功後切換至圈選卡片
+      // 2026-08-10：原本這裡只檢查長度就直接放行進圈選畫面，真正比對是否合法/是否
+      // 投過票要等到最後送出選票才知道——使用者會白白選完候選人才被打回票，體驗很差。
+      // 改成這裡就先呼叫 GAS 的 verify_code 動作實際核對一次，錯了就地顯示錯誤、
+      // 不放行。錯誤訊息刻意跟 Code.gs 那邊一樣籠統（不分「碼不存在」或「已投過票」），
+      // 避免被拿來窮舉試碼。
+      // 2026-08-11：改用共用的 setButtonLoading，統一換成轉圈圖示＋文字（原本只換
+      // 文字沒有轉圈動畫），跟發布線上投票/送出選票的 loading 樣式一致。
+      const verifyBtn = document.getElementById('voter-verify-btn');
+      setButtonLoading(verifyBtn, true, '驗證中…');
+      document.getElementById('verify-error-msg').style.display = 'none';
+
+      try {
+        await callGasApi({ action: "verify_code", vote_id: currentVoteConfig.voteId, verify_code: code });
+      } catch (err) {
+        document.getElementById('verify-error-msg').innerText = err.message;
+        document.getElementById('verify-error-msg').style.display = 'block';
+        setButtonLoading(verifyBtn, false);
+        return;
+      }
+      setButtonLoading(verifyBtn, false);
+
+      enteredVerifyCode = code;
+
+      // 切換至圈選卡片
       document.getElementById('voter-step-verify').style.display = 'none';
       document.getElementById('voter-step-ballot').style.display = 'block';
       document.getElementById('voter-sticky-bar').style.display = 'flex';
       renderCandidateCards();
     }
 
+    // 2026-08-11：同時辦理模式下渲染兩組候選人卡片（教評會＋考核會），單選模式只渲染
+    // 教評會（or 考核會，但都用同一個 candidate-grid-container / candidates 陣列）那一組，
+    // 跟改版前逐字相同。用共用的 renderCandidateCardsFor 產生卡片，用 which='tr'/'pr'
+    // 區分兩邊各自獨立的勾選清單與上限。
     function renderCandidateCards() {
-      const container = document.getElementById('candidate-grid-container');
+      renderCandidateCardsFor('candidate-grid-container', currentVoteConfig.candidates, 'tr');
+      if (currentVoteConfig.committeeType === 'joint') {
+        renderCandidateCardsFor('candidate-grid-container-pr', currentVoteConfig.candidatesPr, 'pr');
+      }
+    }
+
+    function renderCandidateCardsFor(containerId, candidates, which) {
+      const container = document.getElementById(containerId);
+      if (!container) return;
       container.innerHTML = '';
 
-      currentVoteConfig.candidates.forEach((candName, idx) => {
+      (candidates || []).forEach((candName, idx) => {
         const card = document.createElement('div');
         card.className = 'candidate-card';
         card.setAttribute('data-name', candName);
-        card.onclick = () => toggleSelectCandidate(card, candName);
+        card.onclick = () => toggleSelectCandidate(card, candName, which);
 
         card.innerHTML = `
           <i class="ri-checkbox-circle-fill check-icon"></i>
@@ -1438,31 +2477,52 @@
       });
     }
 
-    function toggleSelectCandidate(cardElement, name) {
+    // which: 'tr' (教評會，預設) 或 'pr' (考核會，只有同時辦理模式會用到)。兩組清單/
+    // 上限各自獨立，圈教評會不會影響考核會那一組的計數或鎖定狀態，反之亦然。
+    function toggleSelectCandidate(cardElement, name, which) {
+      which = which || 'tr';
+      const isPr = which === 'pr';
+      const list = isPr ? selectedCandidateNamesPr : selectedCandidateNames;
+      const maxCount = isPr ? currentVoteConfig.maxSelectablePr : currentVoteConfig.maxSelectable;
+
       if (cardElement.classList.contains('disabled') && !cardElement.classList.contains('selected')) {
         return;
       }
 
       if (cardElement.classList.contains('selected')) {
         cardElement.classList.remove('selected');
-        selectedCandidateNames = selectedCandidateNames.filter(n => n !== name);
+        const idx = list.indexOf(name);
+        if (idx !== -1) list.splice(idx, 1);
       } else {
-        if (selectedCandidateNames.length >= currentVoteConfig.maxSelectable) {
-          alert(`已達到應選上限 ${currentVoteConfig.maxSelectable} 人！`);
+        if (list.length >= maxCount) {
+          alert(`已達到應選上限 ${maxCount} 人！`);
           return;
         }
         cardElement.classList.add('selected');
-        selectedCandidateNames.push(name);
+        list.push(name);
       }
 
-      // 更新 Sticky 欄計數與鎖定狀態
-      document.getElementById('voter-selected-count').innerText = selectedCandidateNames.length;
-      updateCandidateCardDisabledState();
+      if (isPr) {
+        document.getElementById('voter-selected-count-pr').innerText = selectedCandidateNamesPr.length;
+      } else {
+        // 單選模式看 sticky 欄，同時辦理模式改看區塊內的行內計數；兩個 id 都存在時
+        // 不衝突，同步更新即可。
+        document.getElementById('voter-selected-count').innerText = selectedCandidateNames.length;
+        const inlineEl = document.getElementById('voter-selected-count-inline');
+        if (inlineEl) inlineEl.innerText = selectedCandidateNames.length;
+      }
+      updateCandidateCardDisabledState(which);
     }
 
-    function updateCandidateCardDisabledState() {
-      const cards = document.querySelectorAll('.candidate-card');
-      const isMaxReached = selectedCandidateNames.length >= currentVoteConfig.maxSelectable;
+    function updateCandidateCardDisabledState(which) {
+      which = which || 'tr';
+      const isPr = which === 'pr';
+      const container = document.getElementById(isPr ? 'candidate-grid-container-pr' : 'candidate-grid-container');
+      if (!container) return;
+      const cards = container.querySelectorAll('.candidate-card');
+      const list = isPr ? selectedCandidateNamesPr : selectedCandidateNames;
+      const maxCount = isPr ? currentVoteConfig.maxSelectablePr : currentVoteConfig.maxSelectable;
+      const isMaxReached = list.length >= maxCount;
 
       cards.forEach(card => {
         if (isMaxReached && !card.classList.contains('selected')) {
@@ -1474,11 +2534,24 @@
     }
 
     function openConfirmModal() {
-      if (selectedCandidateNames.length === 0) {
-        alert("請至少圈選 1 位候選人！");
-        return;
+      const isJoint = currentVoteConfig.committeeType === 'joint';
+      if (isJoint) {
+        // 同時辦理：兩個委員會是各自獨立的選舉，跟紙本模式一樣「每張選票都要圈」，
+        // 所以要求兩邊都至少選 1 人，不能只投其中一邊、漏投另一邊。
+        if (selectedCandidateNames.length === 0 || selectedCandidateNamesPr.length === 0) {
+          alert("請分別為「教評會」與「考核會」至少各圈選 1 位候選人！");
+          return;
+        }
+        document.getElementById('modal-selected-list').innerHTML =
+          `<div style="margin-bottom:0.5rem;"><strong>教評會：</strong>${selectedCandidateNames.join('、')}</div>` +
+          `<div><strong>考核會：</strong>${selectedCandidateNamesPr.join('、')}</div>`;
+      } else {
+        if (selectedCandidateNames.length === 0) {
+          alert("請至少圈選 1 位候選人！");
+          return;
+        }
+        document.getElementById('modal-selected-list').innerText = selectedCandidateNames.join('、');
       }
-      document.getElementById('modal-selected-list').innerText = selectedCandidateNames.join('、');
       document.getElementById('confirm-modal').style.display = 'flex';
     }
 
@@ -1486,7 +2559,40 @@
       document.getElementById('confirm-modal').style.display = 'none';
     }
 
-    function submitFinalVote() {
+    async function submitFinalVote() {
+      const isJoint = currentVoteConfig.committeeType === 'joint';
+      // 同時辦理模式下，教評會與考核會的圈選結果在同一個 submit_vote 請求裡一起送出——
+      // 後端只做「一次核銷、一次寫入」（見 handleSubmitVote），不會有教評會投了、
+      // 考核會沒投成功的中間狀態，防重複投票天生綁在同一個核銷動作上。
+      const payload = {
+        action: "submit_vote",
+        vote_id: currentVoteConfig.voteId,
+        verify_code: enteredVerifyCode,
+        selected_candidates: selectedCandidateNames
+      };
+      if (isJoint) {
+        payload.selected_candidates_pr = selectedCandidateNamesPr;
+      }
+
+      // 2026-08-11：跟發布線上投票同樣的問題——網路慢時按下「確定送出選票」後畫面
+      // 沒有任何反饋，使用者不確定有沒有送出。這裡鎖住「確定送出」跟「返回修改」
+      // 兩顆按鈕（送出中途不該讓人關掉 modal），換轉圈圖示＋文字，等 API 回應
+      // （成功或失敗）才在 finally 恢復。
+      const submitBtn = document.getElementById('submit-vote-btn');
+      const cancelBtn = document.getElementById('submit-vote-cancel-btn');
+      setButtonLoading(submitBtn, true, '送出中…');
+      if (cancelBtn) cancelBtn.disabled = true;
+      try {
+        await callGasApi(payload);
+      } catch (err) {
+        closeConfirmModal();
+        alert("投票送出失敗：" + err.message);
+        return;
+      } finally {
+        setButtonLoading(submitBtn, false);
+        if (cancelBtn) cancelBtn.disabled = false;
+      }
+
       closeConfirmModal();
       document.getElementById('voter-step-ballot').style.display = 'none';
       document.getElementById('voter-sticky-bar').style.display = 'none';
@@ -1494,5 +2600,6 @@
       document.getElementById('success-timestamp').innerText = new Date().toLocaleString('zh-TW');
     }
   </script>
+  <script defer src="https://leotsai.me/assets/site-counter.js?v=20260812-election-counter" data-show-badge="false"></script>
 </body>
 </html>
