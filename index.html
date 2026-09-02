@@ -432,10 +432,21 @@
         box-shadow: none !important;
         padding: 0 !important;
       }
+      /* 2026-09-02 追加：這三行原本沒加 !important，跟下面 453 行那條「非列印」的
+         .a4-preview 基礎規則選擇器優先權相同（都只是單一 class），CSS 遇到優先權
+         相同的規則時是看「原始碼順序」而不是「有沒有在 @media print 裡」，後面出現
+         的規則會贏。因為基礎規則寫在這個 @media print 區塊之後，所以列印時這裡的
+         min-height:0/border:none 其實完全沒生效，min-height 仍然是 29.7cm、border
+         仍然是 1px solid #ccc。後果：.a4-preview 被鎖死在剛好等於一整頁 A4 高度
+         （29.7cm，@page margin 又設 0，完全沒有容錯空間），只要瀏覽器排版/字型度量
+         有一丁點的次像素捨入誤差，整個框就會多出一小段溢位，被硬生生擠出一張幾乎
+         全空白的第二頁——不管候選人有幾位都會發生（因為原因跟內容多寡無關，是這個
+         固定死的滿版高度本身沒有安全邊際）。加上 !important 讓列印時確實改回依內容
+         自動撐高，不再鎖死一整頁高度。 */
       .a4-preview {
-        box-shadow: none;
-        border: none;
-        min-height: 0;
+        box-shadow: none !important;
+        border: none !important;
+        min-height: 0 !important;
       }
       /* 表格分頁優化：每頁都重複表頭、避免同一列被硬切成兩半 */
       .ballot-table {
@@ -1633,11 +1644,17 @@
       // 有人已經被標記成這個職稱時，先解除標記，避免留下指向不存在職稱的殘留資料。
       // 同時辦理模式下，考核會候選人資格要恢復 isCandidatePr（不動 isCandidate，
       // 那一欄在同時辦理模式下代表教評會資格，兩邊互不影響）。
+      // 2026-09-02 追加：如果被整個移除的職稱是「教師會代表」，因為這個身分同時也是
+      // 教評會的法定當然委員（見 setExOfficioRole 註解），要一併恢復 isCandidate，
+      // 否則這個人會卡在「不能參選教評會」的狀態，即使名冊上已經沒有這個職稱選項了。
       parsedVotersList.forEach(v => {
         if (v.exOfficioRole === role) {
           v.exOfficioRole = null;
           if (isJoint) {
             v.isCandidatePr = true;
+            if (role === '教師會代表') {
+              v.isCandidate = true;
+            }
           } else {
             v.isCandidate = true;
           }
@@ -1661,17 +1678,26 @@
     // 名冊表格裡「當然委員標記」下拉選單變動時呼叫：標記為當然委員的人自動從考核會
     // 候選人（被選舉權）名單移除，取消標記則恢復候選人資格。
     // 2026-08-11：同時辦理模式下，這個標記只影響「考核會」候選人資格 (isCandidatePr)，
-    // 完全不動 isCandidate（那一欄在同時辦理模式下代表教評會候選人資格，考核會的當然
+    // 原則上不動 isCandidate（那一欄在同時辦理模式下代表教評會候選人資格，考核會的當然
     // 委員身分不代表這個人也不能參選教評會，兩邊法規各自獨立判斷）。單選考核會模式
     // 維持原本行為不變（繼續用 isCandidate）。
+    // 2026-09-02 追加：「教師會代表」是唯一同時橫跨兩會的當然委員身分——依「高級中等
+    // 以下學校教師評審委員會設置辦法」第3條，教師會代表本身就是教評會的法定當然委員，
+    // 不是只有考核會才排除。所以同時辦理模式下，當角色被標記/取消標記為「教師會代表」
+    // 時，這裡額外連動 isCandidate；其餘四種角色（教務/學務/輔導/人事主任）只跟考核會
+    // 有關，維持原行為不動 isCandidate。
     function setExOfficioRole(idx, role) {
       const v = parsedVotersList[idx];
       if (!v) return;
       const isJoint = getCommitteeType() === 'joint';
+      const wasTeacherAssoc = v.exOfficioRole === '教師會代表';
       if (role) {
         v.exOfficioRole = role;
         if (isJoint) {
           v.isCandidatePr = false;
+          if (role === '教師會代表') {
+            v.isCandidate = false;
+          }
         } else {
           v.isCandidate = false;
         }
@@ -1679,6 +1705,9 @@
         v.exOfficioRole = null;
         if (isJoint) {
           v.isCandidatePr = true;
+          if (wasTeacherAssoc) {
+            v.isCandidate = true;
+          }
         } else {
           v.isCandidate = true;
         }
@@ -1903,11 +1932,16 @@
 
         // 「被選舉權」欄：單選模式維持原本邏輯不變（教評會用勾選框；考核會用
         // exOfficioRole 自動判斷）。同時辦理模式下這一欄固定代表「教評會候選人資格」
-        // (isCandidate)，跟考核會的當然委員標記完全脫鉤——department head 標成考核會
-        // 當然委員，不代表他/她也不能參選教評會。
+        // (isCandidate)，跟考核會的當然委員標記大部分脫鉤——department head（教務/學務/
+        // 輔導/人事主任）標成考核會當然委員，不代表他/她也不能參選教評會，兩邊法規各自
+        // 獨立判斷。但「教師會代表」是唯一例外：依「高級中等以下學校教師評審委員會設置
+        // 辦法」第3條，教師會代表本身就是教評會的法定當然委員（跟校長、家長會代表並列），
+        // 所以這裡要特別排除，不能讓他同時又以一般候選人身分出現在教評會圈選名單上。
         const candidacyCell = isJoint
-          ? `<td><input type="checkbox" id="cand-chk-${idx}" ${v.isCandidate ? 'checked' : ''} onchange="toggleCandidate(${idx}, this.checked)">
-               <label for="cand-chk-${idx}">${v.isCandidate ? '列入教評會圈選名單' : '<span style="color:var(--danger);">剔除 (不列入教評會)</span>'}</label></td>`
+          ? (v.exOfficioRole === '教師會代表'
+              ? `<td><span style="color:var(--text-muted);">當然委員（教師會代表），無被選舉權</span></td>`
+              : `<td><input type="checkbox" id="cand-chk-${idx}" ${v.isCandidate ? 'checked' : ''} onchange="toggleCandidate(${idx}, this.checked)">
+               <label for="cand-chk-${idx}">${v.isCandidate ? '列入教評會圈選名單' : '<span style="color:var(--danger);">剔除 (不列入教評會)</span>'}</label></td>`)
           : `<td>
               ${v.exOfficioRole
                 ? `<span style="color:var(--text-muted);">當然委員（${v.exOfficioRole}），無被選舉權</span>`
