@@ -482,6 +482,29 @@
       text-align: center;
       font-size: 0.92rem;
     }
+    /* 選票簽收清冊：每列並排兩人，讓一張A4能容納更多人簽收。
+       用左粗框線在視覺上把同一列的兩人分隔開，避免簽名時看錯欄位。 */
+    .roster-table-2col th.roster-col-divider,
+    .roster-table-2col td.roster-col-divider {
+      border-left: 2px solid #000;
+    }
+    /* 2026-09-04：簽章及簽收日期欄——日期占位文字靠儲存格底部、靠左對齊，
+       讓拉高後的列（1.3cm）上方留出一大塊實體空白，真的夠寫一個手寫簽名，
+       不是只把日期文字置中放大填滿整格。 */
+    .roster-table-2col .roster-sign-cell {
+      text-align: left;
+      vertical-align: bottom;
+      padding: 4px 0.6rem 6px;
+      font-size: 0.88rem;
+      color: #333;
+      letter-spacing: 0.02em;
+    }
+    /* 產製紙本選票：每列並排兩位候選人，讓一張A4能容納更多候選人（跟簽收清冊
+       2026-09-04的兩欄並排作法一致），用左粗框線分隔同一列的兩位候選人的圈選欄。 */
+    .ballot-table-2col th.ballot-col-divider,
+    .ballot-table-2col td.ballot-col-divider {
+      border-left: 2px solid #000;
+    }
 
     /* 頁尾 Footer */
     footer {
@@ -1076,17 +1099,21 @@
             <span style="font-size: 0.85rem; color: #333;">※ 當然委員：校長、家長會代表、教師會代表。</span>
           </div>
 
-          <table class="ballot-table">
+          <table class="ballot-table ballot-table-2col">
             <thead>
               <tr>
-                <th style="width: 15%;">圈選欄</th>
-                <th style="width: 15%;">號次</th>
-                <th style="width: 35%;">被選舉人姓名</th>
-                <th style="width: 35%;">備註 / 身分</th>
+                <th style="width: 8%;">圈選欄</th>
+                <th style="width: 6%;">號次</th>
+                <th style="width: 20%;">被選舉人姓名</th>
+                <th style="width: 16%;">備註 / 身分</th>
+                <th style="width: 8%;" class="ballot-col-divider">圈選欄</th>
+                <th style="width: 6%;">號次</th>
+                <th style="width: 20%;">被選舉人姓名</th>
+                <th style="width: 16%;">備註 / 身分</th>
               </tr>
             </thead>
             <tbody id="print-candidate-tbody">
-              <!-- 動態產製 A4 被選舉人格子 -->
+              <!-- 動態產製 A4 被選舉人格子（2026-09-04起改為每列並排兩人，人數多時可容納更多候選人於單頁） -->
             </tbody>
           </table>
 
@@ -1166,17 +1193,22 @@
           <h2 style="text-align: center; font-size: 1.2rem; margin-bottom: 0.2rem;" id="print-roster-school-title">高雄市OO區OO國民小學 115 學年度教師評審委員會</h2>
           <h3 style="text-align: center; font-size: 1.1rem; margin-bottom: 0.7rem;" id="print-roster-subtitle">選舉選票 簽收清冊</h3>
           
-          <table class="ballot-table">
+          <table class="ballot-table roster-table-2col">
             <thead>
-              <tr>
-                <th style="width: 12%;">編號</th>
-                <th style="width: 25%;">職稱</th>
-                <th style="width: 25%;">姓名</th>
-                <th style="width: 38%;">簽章及簽收日期</th>
+              <!-- 2026-09-04：拿掉「職稱」欄（簽收清冊本來就不靠職稱識別身分，姓名+編號
+                   已足夠核對），把騰出來的欄寬幾乎全部讓給「簽章及簽收日期」欄，讓簽名欄
+                   實際變寬（6%+13%+31%=50%，兩人並排仍是100%，原本職稱15%只留1%平均分給
+                   編號/姓名，其餘14%全數併入簽章欄：17%→31%）。 -->
+                <th style="width: 6%;">編號</th>
+                <th style="width: 13%;">姓名</th>
+                <th style="width: 31%;">簽章及簽收日期</th>
+                <th style="width: 6%;" class="roster-col-divider">編號</th>
+                <th style="width: 13%;">姓名</th>
+                <th style="width: 31%;">簽章及簽收日期</th>
               </tr>
             </thead>
             <tbody id="print-roster-tbody">
-              <!-- 動態產製全體專任教師簽名清冊 -->
+              <!-- 動態產製全體專任教師簽名清冊（每列兩人並排） -->
             </tbody>
           </table>
 
@@ -1314,7 +1346,21 @@
     // application/json）：GAS Web App 對 CORS 的 preflight（OPTIONS）支援不完整，
     // 用 text/plain 可以避免瀏覽器發出 preflight，doPost 端還是能正常用
     // e.postData.contents 解析出 JSON。
-    async function callGasApi(payload) {
+    // 2026-09-03：在survey.leotsai.me（同樣是「前端fetch() POST到GAS /exec」架構）
+    // 實測發現的已知問題，這裡是同一套架構，理論上同樣會中招，所以比照補上防護：
+    // GAS的/exec網址回應時會302轉址到script.googleusercontent.com的實際內容網址，
+    // 瀏覽器fetch()對301/302/303轉址的標準行為是把原本的POST自動降級成GET（body會被
+    // 丟掉）——這個降級不是每次都發生，實測約4次會遇到1次。降級發生時，這次請求會
+    // 誤打到doGet的預設回應（也就是上面「GAS Voting API 運作中」那句話），而這句話
+    // 剛好也是status:"success"格式，若只檢查這個欄位會被誤判成「操作真的成功了」——
+    // 如果剛好發生在驗證通行碼或送出選票，可能出現「頁面顯示成功但票其實沒被記錄」
+    // 這種嚴重狀況。因此這裡加上偵測：只要回應內容剛好是這句「萬用預設訊息」、或
+    // 回應根本不是合法JSON，就視為暫時性失敗、自動重試最多3次（每次間隔400ms），
+    // 對使用者完全無感；只有重試用盡才真的回報錯誤。
+    const GAS_FALLBACK_PING_MESSAGE = "GAS Voting API 運作中";
+
+    async function callGasApi(payload, retriesLeft) {
+      if (retriesLeft === undefined) retriesLeft = 3;
       if (!GAS_API_URL || GAS_API_URL === "YOUR_GAS_WEB_APP_URL") {
         throw new Error("後端尚未連接：管理者還沒有把 Google Apps Script 部署後的 Web App 網址填入 GAS_API_URL，目前無法建立/讀取真實投票活動。");
       }
@@ -1332,7 +1378,15 @@
       try {
         result = await response.json();
       } catch (parseErr) {
+        if (retriesLeft > 0) {
+          await new Promise(function (r) { setTimeout(r, 400); });
+          return callGasApi(payload, retriesLeft - 1);
+        }
         throw new Error("後端回應格式異常，請確認 GAS_API_URL 是否為正確的 Web App 網址。");
+      }
+      if (result.message === GAS_FALLBACK_PING_MESSAGE && retriesLeft > 0) {
+        await new Promise(function (r) { setTimeout(r, 400); });
+        return callGasApi(payload, retriesLeft - 1);
       }
       if (result.status !== "success") {
         throw new Error(result.message || "後端回應失敗，請稍後再試。");
@@ -1479,6 +1533,26 @@
     // 的數字（不傳就沿用原本行為：用目前下拉選單選的類型，讀 max_selectable 欄位——
     // 單選教評會/單選考核會兩種既有模式完全不受影響，只有 forType 明確指定、且目前
     // 選單正是「同時辦理」時，考核會那一份才會改讀新增的 max_selectable_pr 欄位。
+    // 2026-09-07 修正（重大）：原本這裡不管教評會或考核會，都是先讀「圈選上限人次」
+    // (max_selectable / max_selectable_pr) 這個獨立輸入欄位當作應選委員數，教評會的
+    // 委員總額(committee_total_n)另外單獨讀，考核會的委員總額更誇張是直接用
+    // 「應選委員(圈選上限欄位) + 當然委員」反推出來、完全沒讀考核會委員總額滑桿
+    // (pr_committee_total_n)。這造成兩個層級的錯：
+    //   (1) 教評會：委員總額滑桿改變時，圈選上限欄位不會自動跟著更新，選票印出來
+    //       就可能出現「委員9人，除當然委員3人外，應選委員8人」這種 3+8≠9 的算式
+    //       矛盾（圈選上限欄位還停留在切換前的舊值）。
+    //   (2) 考核會：委員總額文字根本不是讀「委員總額」滑桿，而是拿當然委員數＋圈選
+    //       上限欄位加總反推出一個數字，管理者調整委員總額滑桿對選票內容完全沒有
+    //       任何影響（比教評會的情況更嚴重：不是數字對不起來，是整段文字沒有跟著
+    //       使用者的輸入變動）。
+    // 正確的法定關係應該是：委員總額為管理者輸入的權威數字（教評會＝
+    // committee_total_n 滑桿；考核會＝pr_committee_total_n 滑桿，即「提經校務會議
+    // 決議設置委員人數」），當然委員數各自依規定/名冊標記算出，應選委員（圈選
+    // 上限）永遠是「委員總額－當然委員」反推出來的從屬值，不是另一個可以自由飄移
+    // 的獨立輸入。修法後這裡統一改成「總額、當然委員→反推應選委員」的方向，並把
+    // 算好的應選委員數字同步寫回 max_selectable / max_selectable_pr 欄位本身，這樣
+    // 「發布線上投票」等其他直接讀該欄位值的地方，看到的也會是修正後的正確數字，
+    // 不會出現選票印的是修正後數字、線上投票用的還是舊數字這種新的分裂。
     function computeCommitteeNumbers(forType) {
       const currentType = getCommitteeType();
       const type = forType || currentType;
@@ -1487,11 +1561,17 @@
       const maxSelEl = (isPr && isJointCtx)
         ? document.getElementById('max_selectable_pr')
         : document.getElementById('max_selectable');
-      const maxCount = parseInt(maxSelEl && maxSelEl.value) || 8;
+      const syncMaxSelectable = (maxCount) => {
+        if (maxSelEl && parseInt(maxSelEl.value) !== maxCount) {
+          maxSelEl.value = maxCount;
+        }
+      };
       if (isPr) {
         const exMembers = parsedVotersList.filter(v => v.exOfficioRole);
         const exCount = exMembers.length;
-        const totalN = maxCount + exCount;
+        const totalN = parseInt(document.getElementById('pr_committee_total_n').value) || 13;
+        const maxCount = Math.max(1, totalN - exCount);
+        syncMaxSelectable(maxCount);
         const hasTeacherAssoc = exMembers.some(v => (v.exOfficioRole || '').indexOf('教師會代表') !== -1);
         const nonAdminMin = Math.max(0, Math.floor((totalN - (hasTeacherAssoc ? 1 : 0)) / 3));
         const genderMin = Math.ceil(totalN / 3);
@@ -1500,6 +1580,8 @@
       const totalN = parseInt(document.getElementById('committee_total_n').value) || 11;
       const hasTa = document.getElementById('has_teacher_assoc').checked;
       const exCount = hasTa ? 3 : 2;
+      const maxCount = Math.max(1, totalN - exCount);
+      syncMaxSelectable(maxCount);
       const nonAdminMin = Math.ceil(totalN / 2);
       const genderMin = Math.ceil(totalN / 3);
       return { isPr, totalN, exCount, maxCount, nonAdminMin, genderMin, exMembers: [] };
@@ -2056,16 +2138,31 @@
       const tbody = document.getElementById('print-candidate-tbody');
       tbody.innerHTML = '';
 
-      candidates.forEach((c, i) => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
+      // 2026-09-04：跟選票簽收清冊同一天稍早的兩欄並排修法一樣，每列並排兩位候選人，
+      // 讓候選人多時仍能把選票印在較少頁數內。人數為奇數時，最後一列的右半留白
+      // （不渲染第二位候選人的內容），但仍輸出4個空白td以維持表格欄位數一致、
+      // 避免版面跑掉；每位候選人各自完整保留獨立的圈選欄，不受並排影響。
+      const cellsForCandidate = (c, i) => `
           <td style="height: 26px;">〔  〕</td>
           <td>${i + 1}</td>
           <td><strong>${c.name}</strong></td>
           <td>${c.categoryTag}</td>
-        `;
+      `;
+      const blankCandidateCells = () => `
+          <td style="height: 26px;">&nbsp;</td>
+          <td>&nbsp;</td>
+          <td>&nbsp;</td>
+          <td>&nbsp;</td>
+      `;
+      for (let i = 0; i < candidates.length; i += 2) {
+        const left = candidates[i];
+        const right = candidates[i + 1];
+        const tr = document.createElement('tr');
+        tr.innerHTML = cellsForCandidate(left, i) + (right ? cellsForCandidate(right, i + 1) : blankCandidateCells());
+        // 第5個td（右半的「圈選欄」）補上分隔線class，跟表頭的直線對齊
+        tr.children[4].classList.add('ballot-col-divider');
         tbody.appendChild(tr);
-      });
+      }
 
       document.getElementById('paper-ballot-modal').style.display = 'flex';
     }
@@ -2097,16 +2194,36 @@
       const tbody = document.getElementById('print-roster-tbody');
       tbody.innerHTML = '';
 
-      parsedVotersList.forEach((v, i) => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td style="height: 27px; text-align: center;">${i + 1}</td>
-          <td style="text-align: center;">${v.title}</td>
+      // 每列並排兩人（左半／右半），A4一頁可容納的人數大約可以翻倍。
+      // 人數為奇數時，最後一列的右半留白（不渲染第二人的儲存格內容），
+      // 但仍輸出3個空白td以維持表格欄位數一致、避免版面跑掉。
+      // 2026-09-04：(1) 拿掉「職稱」欄（每人從4欄變3欄：編號/姓名/簽章及簽收日期），
+      // 騰出的欄寬併入簽章欄（見上方表頭註解）。(2) 列高從27px大幅拉高到1.3cm
+      // （約合49px，是原本的近2倍），才有足夠的「實體」空白高度讓人真的簽名，
+      // 不是只把文字框放大而已。(3) 簽章欄改用roster-sign-cell class、文字靠欄位
+      // 底部對齊（vertical-align: bottom），把日期占位文字壓在儲存格最下緣，
+      // 讓儲存格上方大片空白留給簽名，日期文字不會擋在簽名正中間。
+      const cellsForVoter = (v, i) => `
+          <td style="height: 1.3cm; text-align: center;">${i + 1}</td>
           <td style="text-align: center;"><strong>${v.name}</strong></td>
-          <td style="font-size: 0.85rem; color: #333; padding-left: 1rem;">${yearRoc}年  月　　日</td>
-        `;
+          <td class="roster-sign-cell">${yearRoc}年　　月　　日</td>
+      `;
+      const blankCells = () => `
+          <td style="height: 1.3cm;">&nbsp;</td>
+          <td>&nbsp;</td>
+          <td>&nbsp;</td>
+      `;
+
+      for (let i = 0; i < parsedVotersList.length; i += 2) {
+        const left = parsedVotersList[i];
+        const right = parsedVotersList[i + 1];
+        const tr = document.createElement('tr');
+        tr.innerHTML = cellsForVoter(left, i) + (right ? cellsForVoter(right, i + 1) : blankCells());
+        // 第4個td（右半的「編號」欄，索引從0算起）補上分隔線class，跟表頭的直線對齊。
+        // 2026-09-04：拿掉職稱欄後每人剩3欄，右半編號欄的index從4改成3。
+        tr.children[3].classList.add('roster-col-divider');
         tbody.appendChild(tr);
-      });
+      }
 
       document.getElementById('sign-roster-modal').style.display = 'flex';
     }
