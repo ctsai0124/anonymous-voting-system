@@ -1568,11 +1568,26 @@
       };
       if (isPr) {
         const exMembers = parsedVotersList.filter(v => v.exOfficioRole);
-        const exCount = exMembers.length;
+        // 2026-09-07 修正（重大）：exCount（當然委員席次數）過去是用 exMembers.length，也就是
+        // 「名冊裡實際被標記為當然委員的人數」來算。但當然委員的席次是因為「職稱」
+        // （教務/學務/輔導/人事主任、教師會代表）法定存在，不是因為那個人剛好也是教師、
+        // 出現在受考教師名冊裡才存在。人事主任等職務常由不具教師身分、未列入教師名冊的
+        // 人員擔任（甚至「兼辦」而未列入編制表），這種情況下名冊裡沒有任何一列能被標記
+        // 成「人事主任」，exMembers.length 就會比實際當然委員職稱清單（prExOfficioRoles）
+        // 少 1 人以上，導致這裡算出來、進而寫回「票選委員應選人數」欄位的數字被多算。
+        // 已有 getPrEffectiveExOfficioCount()（見上方 pr_committee_total_n 試算區塊與
+        // 「一鍵帶入選任人數」共用同一份邏輯）才是正確的權威來源：以管理者自訂的
+        // 「當然委員職稱清單」人數為準（第9條但書時再上限 2 人），不管名冊能不能配對到人。
+        // exMembers 仍保留，只用於選票/清冊上列出當然委員「姓名」等身分展示用途，不再
+        // 拿來決定「席次數量」。
+        const exCount = getPrEffectiveExOfficioCount();
         const totalN = parseInt(document.getElementById('pr_committee_total_n').value) || 13;
         const maxCount = Math.max(1, totalN - exCount);
         syncMaxSelectable(maxCount);
-        const hasTeacherAssoc = exMembers.some(v => (v.exOfficioRole || '').indexOf('教師會代表') !== -1);
+        // 同理，「是否有教師會代表席」也要看職稱清單本身有沒有列教師會代表，不要看名冊
+        // 有沒有配對到人——避免教師會代表剛選出/交接、名冊尚未同步時，同一類 bug 又發生
+        // 在未兼行政人數門檻（nonAdminMin）的計算上。
+        const hasTeacherAssoc = prExOfficioRoles.some(r => r.indexOf('教師會代表') !== -1);
         const nonAdminMin = Math.max(0, Math.floor((totalN - (hasTeacherAssoc ? 1 : 0)) / 3));
         const genderMin = Math.ceil(totalN / 3);
         return { isPr, totalN, exCount, maxCount, nonAdminMin, genderMin, exMembers };
